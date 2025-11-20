@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Star, Settings, Plus, Trash2, CheckCircle2, XCircle, Zap, User, Edit3, Circle, X, Smile, BrainCircuit, Heart, Palette, ShoppingBag, Calendar as CalendarIcon, Cloud, Copy, Download, Upload, RefreshCw } from 'lucide-react';
+import { Star, Settings, Plus, Trash2, CheckCircle2, XCircle, Zap, User, Edit3, Circle, X, Smile, BrainCircuit, Heart, Palette, ShoppingBag, Calendar as CalendarIcon, Cloud, Copy, Download, Upload, RefreshCw, ArrowRight, Link as LinkIcon } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS, CLOUD_API_URL } from './constants';
 import { Task, Reward, TaskCategory, Transaction } from './types';
@@ -70,8 +70,11 @@ export default function App() {
   // Modal States
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
-  const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_username'));
-  
+  // Only show name modal if no username AND no family ID (checking family ID handles the case where user wiped local storage but wants to login)
+  const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
+  const [onboardingMode, setOnboardingMode] = useState<'create' | 'join'>('create');
+  const [joinInputId, setJoinInputId] = useState('');
+
   // Celebration State
   const [showCelebration, setShowCelebration] = useState<{show: boolean, points: number, type: 'success' | 'penalty'}>({ 
     show: false, 
@@ -102,6 +105,7 @@ export default function App() {
   // 1. Auto-load on startup if familyId exists
   useEffect(() => {
     if (familyId && isInitialMount.current) {
+      console.log("Initial mount with Family ID, fetching data...");
       handleCloudLoad(true); // Silent load
     }
     isInitialMount.current = false;
@@ -151,19 +155,28 @@ export default function App() {
     try {
       const data = await cloudService.loadData(familyId);
       if (data) {
-        setTasks(data.tasks || INITIAL_TASKS);
-        setRewards(data.rewards || INITIAL_REWARDS);
-        setLogs(data.logs || {});
-        setBalance(data.balance || 0);
-        setTransactions(data.transactions || []);
-        setThemeKey((data.themeKey as ThemeKey) || 'lemon');
+        // Merge logic: In a simple version, cloud wins. 
+        // In production, you might want smarter merging.
+        if (data.tasks) setTasks(data.tasks);
+        if (data.rewards) setRewards(data.rewards);
+        if (data.logs) setLogs(data.logs);
+        if (data.balance !== undefined) setBalance(data.balance);
+        if (data.transactions) setTransactions(data.transactions);
+        if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
         if (data.userName) setUserName(data.userName);
         
         setSyncStatus('saved');
         setLastSyncTime(Date.now());
-        if (!silent) alert('数据已从云端同步！');
+        if (!silent) {
+            // Small visual feedback
+             confetti({
+                particleCount: 50,
+                spread: 60,
+                origin: { y: 0.8 },
+                colors: ['#A7F3D0', '#6EE7B7', '#34D399'] // Minty greens
+            });
+        }
       } else {
-        // Only alert if explicit action
         if (!silent) alert('未找到云端数据，请先上传。');
         setSyncStatus('idle');
       }
@@ -173,10 +186,51 @@ export default function App() {
     }
   };
 
+  // New User / Onboarding Handlers
+  const handleStartAdventure = async () => {
+    if (!userName.trim()) return;
+    
+    // 1. Generate new Family ID
+    const newId = cloudService.generateFamilyId();
+    setFamilyId(newId);
+    
+    // 2. Close Modal
+    setIsNameModalOpen(false);
+    
+    // 3. Trigger Initial Save immediately to reserve ID and save name
+    // Use timeout to ensure state is updated
+    setTimeout(async () => {
+        const initialData = {
+            tasks: INITIAL_TASKS,
+            rewards: INITIAL_REWARDS,
+            logs: {},
+            balance: 0,
+            transactions: [],
+            themeKey: 'lemon',
+            userName: userName
+        };
+        // Force save with explicit data to avoid race condition with state updates
+        await cloudService.saveData(newId, initialData);
+        // Trigger confetti
+        triggerStarConfetti();
+    }, 100);
+  };
+
+  const handleJoinFamily = async () => {
+      if (!joinInputId.trim()) return;
+      
+      setFamilyId(joinInputId);
+      setIsNameModalOpen(false);
+      
+      // Trigger load immediately
+      setTimeout(() => {
+          handleCloudLoad(false); // Not silent, show result
+      }, 100);
+  };
+
   const handleCreateFamily = () => {
     const newId = cloudService.generateFamilyId();
     setFamilyId(newId);
-    // Trigger immediate save to reserve the ID
     setTimeout(() => handleCloudSave(), 100);
   };
 
@@ -531,7 +585,10 @@ export default function App() {
                         </div>
                     </div>
                     <button 
-                        onClick={() => setIsNameModalOpen(true)}
+                        onClick={() => {
+                            setOnboardingMode('create');
+                            setIsNameModalOpen(true);
+                        }}
                         className="bg-slate-100 p-2.5 rounded-xl hover:bg-slate-200 text-slate-500 transition-colors"
                     >
                         <Edit3 size={18} />
@@ -554,7 +611,7 @@ export default function App() {
 
                     {!familyId ? (
                         <div className="space-y-3">
-                            <p className="text-sm text-slate-500 mb-2">在不同设备(手机、平板)之间同步星星和任务。</p>
+                            <p className="text-sm text-slate-500 mb-2">创建家庭ID以备份数据，或输入现有ID同步其他设备的数据。</p>
                              {CLOUD_API_URL.includes('example') && (
                                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-3">
                                      ⚠️ 提示：后端 API 地址未配置，请在代码 constants.ts 中更新 CLOUD_API_URL。
@@ -733,28 +790,69 @@ export default function App() {
 
       {/* --- MODALS --- */}
 
-      {/* Name Entry */}
+      {/* Onboarding Modal (Name + Family ID) */}
       {isNameModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
-              <div className={`bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 ${activeTheme.border}`}>
+              <div className={`bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 ${activeTheme.border} overflow-hidden`}>
+                  
                   <div className={`${activeTheme.light} w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5`}>
-                      <User size={40} className={activeTheme.accent} />
+                      {onboardingMode === 'create' ? <User size={40} className={activeTheme.accent} /> : <LinkIcon size={40} className={activeTheme.accent} />}
                   </div>
-                  <h2 className="font-cute text-2xl text-slate-800 mb-2">欢迎来到小小星系!</h2>
-                  <p className="text-slate-500 mb-6 text-base">告诉星星你叫什么名字吧？</p>
-                  <input 
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    placeholder="输入你的名字"
-                    className={`w-full bg-slate-50 border-2 rounded-xl p-3 text-center text-xl font-bold text-slate-700 outline-none focus:${activeTheme.border} mb-6`}
-                  />
-                  <button 
-                    disabled={!userName.trim()}
-                    onClick={() => setIsNameModalOpen(false)}
-                    className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 ${!userName.trim() ? 'bg-slate-300' : `bg-gradient-to-r ${activeTheme.gradient}`}`}
-                  >
-                      开始探险！🚀
-                  </button>
+                  
+                  <h2 className="font-cute text-2xl text-slate-800 mb-2">
+                      {onboardingMode === 'create' ? '欢迎来到小小星系!' : '同步已有数据'}
+                  </h2>
+                  
+                  {onboardingMode === 'create' ? (
+                      <>
+                        <p className="text-slate-500 mb-6 text-base">告诉星星你叫什么名字吧？</p>
+                        <input 
+                            value={userName}
+                            onChange={(e) => setUserName(e.target.value)}
+                            placeholder="输入你的名字"
+                            className={`w-full bg-slate-50 border-2 rounded-xl p-3 text-center text-xl font-bold text-slate-700 outline-none focus:${activeTheme.border} mb-6`}
+                        />
+                        <button 
+                            disabled={!userName.trim()}
+                            onClick={handleStartAdventure}
+                            className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 mb-4 flex items-center justify-center gap-2 ${!userName.trim() ? 'bg-slate-300' : `bg-gradient-to-r ${activeTheme.gradient}`}`}
+                        >
+                            开始探险！<ArrowRight size={20} />
+                        </button>
+                        
+                        <button 
+                            onClick={() => setOnboardingMode('join')}
+                            className="text-sm text-slate-400 underline hover:text-slate-600"
+                        >
+                            我有家庭同步ID
+                        </button>
+                      </>
+                  ) : (
+                      <>
+                        <p className="text-slate-500 mb-6 text-base">输入家庭ID来同步其他设备</p>
+                        <input 
+                            value={joinInputId}
+                            onChange={(e) => setJoinInputId(e.target.value)}
+                            placeholder="例如: x8z2k9..."
+                            className={`w-full bg-slate-50 border-2 rounded-xl p-3 text-center text-lg font-mono text-slate-700 outline-none focus:${activeTheme.border} mb-6`}
+                        />
+                        <button 
+                            disabled={!joinInputId.trim()}
+                            onClick={handleJoinFamily}
+                            className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 mb-4 flex items-center justify-center gap-2 ${!joinInputId.trim() ? 'bg-slate-300' : `bg-gradient-to-r ${activeTheme.gradient}`}`}
+                        >
+                            <Cloud size={20} /> 立即同步
+                        </button>
+                        
+                        <button 
+                            onClick={() => setOnboardingMode('create')}
+                            className="text-sm text-slate-400 underline hover:text-slate-600"
+                        >
+                            我是新用户，创建新档案
+                        </button>
+                      </>
+                  )}
+
               </div>
           </div>
       )}
