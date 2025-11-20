@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Star, Calendar as CalendarIcon, ShoppingBag, Settings, Plus, Trash2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Zap, User, Edit3, Circle, X, Smile, BrainCircuit, Heart, CloudRain, CloudLightning, Palette } from 'lucide-react';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Star, Settings, Plus, Trash2, CheckCircle2, XCircle, Zap, User, Edit3, Circle, X, Smile, BrainCircuit, Heart, Palette, ShoppingBag, Calendar as CalendarIcon, Cloud, Copy, Download, Upload, RefreshCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { INITIAL_TASKS, INITIAL_REWARDS } from './constants';
+import { INITIAL_TASKS, INITIAL_REWARDS, CLOUD_API_URL } from './constants';
 import { Task, Reward, TaskCategory, Transaction } from './types';
+import { THEMES, ThemeKey } from './styles/themes';
+import { Header } from './components/Header';
+import { DateNavigator } from './components/DateNavigator';
+import { CelebrationOverlay } from './components/CelebrationOverlay';
+import { NavBar } from './components/NavBar';
+import { cloudService, CloudData } from './services/cloud';
 
 // --- Constants for UI ---
 const COMMON_EMOJIS = [
@@ -13,62 +20,7 @@ const COMMON_EMOJIS = [
   '🦄', '🦕', '🚀', '👑', '🌈', '🍩'
 ];
 
-// --- Themes Configuration ---
-type ThemeKey = 'lemon' | 'mint' | 'blueberry' | 'lavender';
-
-const THEMES: Record<ThemeKey, { 
-  name: string;
-  gradient: string;
-  solid: string;
-  light: string;
-  border: string;
-  shadow: string;
-  accent: string;
-  button: string;
-}> = {
-  lemon: {
-    name: '柠檬糖黄',
-    gradient: 'from-yellow-400 to-orange-400',
-    solid: 'bg-yellow-400',
-    light: 'bg-yellow-50',
-    border: 'border-yellow-200',
-    shadow: 'shadow-yellow-200',
-    accent: 'text-yellow-600',
-    button: 'bg-yellow-400 hover:bg-yellow-500'
-  },
-  mint: {
-    name: '薄荷奶油绿',
-    gradient: 'from-emerald-400 to-teal-400',
-    solid: 'bg-emerald-400',
-    light: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    shadow: 'shadow-emerald-200',
-    accent: 'text-emerald-600',
-    button: 'bg-emerald-400 hover:bg-emerald-500'
-  },
-  blueberry: {
-    name: '蓝莓棉花糖',
-    gradient: 'from-blue-400 to-indigo-400',
-    solid: 'bg-blue-400',
-    light: 'bg-blue-50',
-    border: 'border-blue-200',
-    shadow: 'shadow-blue-200',
-    accent: 'text-blue-600',
-    button: 'bg-blue-400 hover:bg-blue-500'
-  },
-  lavender: {
-    name: '梦幻薰衣草',
-    gradient: 'from-purple-400 to-pink-400',
-    solid: 'bg-purple-400',
-    light: 'bg-purple-50',
-    border: 'border-purple-200',
-    shadow: 'shadow-purple-200',
-    accent: 'text-purple-600',
-    button: 'bg-purple-400 hover:bg-purple-500'
-  }
-};
-
-// Category styling remains consistent regardless of theme to maintain semantic meaning
+// Category styling
 const CATEGORY_STYLES = {
     [TaskCategory.LIFE]: { bg: 'bg-lime-50', border: 'border-lime-200', text: 'text-lime-700', iconBg: 'bg-lime-400', accent: 'text-lime-500' },
     [TaskCategory.BEHAVIOR]: { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', iconBg: 'bg-sky-400', accent: 'text-sky-500' },
@@ -76,119 +28,14 @@ const CATEGORY_STYLES = {
     [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
 };
 
-// --- Sub-Components ---
-
-const Header = ({ balance, userName, themeKey }: { balance: number, userName: string, themeKey: ThemeKey }) => {
-  const theme = THEMES[themeKey];
-  return (
-    <div className={`bg-gradient-to-b ${theme.gradient} text-white p-4 pt-8 rounded-b-[2.5rem] shadow-xl sticky top-0 z-20 transition-all duration-500`}>
-      <div className="flex justify-between items-center max-w-5xl mx-auto px-2">
-        <div>
-          <h1 className="text-2xl font-cute tracking-wide drop-shadow-sm">
-            {userName ? `${userName}的` : '小小'}星系 🦄
-          </h1>
-          <p className="text-white/90 text-sm font-medium mt-1">今天也要棒棒的！</p>
-        </div>
-        <div className="flex items-center bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full border-2 border-white/40 shadow-lg transform hover:scale-105 transition-transform">
-          <span className="text-3xl font-cute text-yellow-300 drop-shadow-md mr-2">{balance}</span>
-          <Star className="w-6 h-6 text-yellow-300 fill-yellow-300 animate-pulse" />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const DateNavigator = ({ date, setDate, themeKey }: { date: Date, setDate: (d: Date) => void, themeKey: ThemeKey }) => {
-  const theme = THEMES[themeKey];
-  const formatDate = (d: Date) => {
-    const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const day = d.getDate();
-    const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
-    return `${m}月${day}日 星期${week}`;
-  };
-
-  const changeDate = (days: number) => {
-    const newDate = new Date(date);
-    newDate.setDate(date.getDate() + days);
-    setDate(newDate);
-  };
-
-  return (
-    <div className={`flex items-center justify-between bg-white p-2 rounded-full shadow-sm mx-auto mt-4 mb-4 border-2 ${theme.border} max-w-xs transition-colors duration-500`}>
-      <button onClick={() => changeDate(-1)} className={`p-1.5 ${theme.light} rounded-full ${theme.accent} hover:bg-opacity-80 transition-colors`}>
-        <ChevronLeft size={20} strokeWidth={3} />
-      </button>
-      <span className={`font-cute text-lg ${theme.accent}`}>{formatDate(date)}</span>
-      <button onClick={() => changeDate(1)} className={`p-1.5 ${theme.light} rounded-full ${theme.accent} hover:bg-opacity-80 transition-colors`}>
-        <ChevronRight size={20} strokeWidth={3} />
-      </button>
-    </div>
-  );
-};
-
-// --- Celebration Overlay Component ---
-const CelebrationOverlay = ({ isVisible, points, type }: { isVisible: boolean, points: number, type: 'success' | 'penalty' }) => {
-  if (!isVisible) return null;
-
-  const isPenalty = type === 'penalty';
-
-  return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center pointer-events-none">
-      {/* Dim background */}
-      <div className={`absolute inset-0 backdrop-blur-[2px] animate-fade-out ${isPenalty ? 'bg-slate-900/60' : 'bg-black/30'}`} style={{ animationDuration: '1.5s', animationDelay: '0.8s', animationFillMode: 'forwards' }}></div>
-      
-      {/* Animation Container */}
-      <div className={`relative z-10 flex flex-col items-center justify-center ${isPenalty ? 'animate-shake' : 'animate-star-enter'}`}>
-        
-        {/* Glow */}
-        <div className={`absolute inset-0 rounded-full blur-3xl w-80 h-80 ${isPenalty ? 'bg-slate-500/30 animate-pulse' : 'bg-yellow-400/30 animate-pulse'}`}></div>
-        
-        {/* Main Icon */}
-        <div className="relative mb-8">
-           {isPenalty ? (
-             <div className="relative">
-                 <CloudLightning size={150} className="text-slate-300 fill-slate-600 drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]" strokeWidth={1.5} />
-                 <div className="absolute inset-0 flex justify-center items-center pt-8">
-                    <CloudRain size={80} className="text-blue-300 fill-blue-400 animate-bounce opacity-80" style={{animationDuration: '1.5s'}} />
-                 </div>
-             </div>
-           ) : (
-             <div className="relative">
-                <Star size={160} className="text-yellow-400 fill-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)] animate-float" strokeWidth={1.5} />
-                {/* Little Stars */}
-                <Star size={48} className="absolute -top-6 -right-6 text-amber-300 fill-amber-300 animate-bounce" style={{ animationDelay: '0.1s' }} />
-                <Star size={36} className="absolute bottom-2 -left-8 text-yellow-200 fill-yellow-200 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                <Star size={40} className="absolute -bottom-4 right-0 text-orange-300 fill-orange-300 animate-bounce" style={{ animationDelay: '0.3s' }} />
-             </div>
-           )}
-           
-           {/* Points Text */}
-           <div className={`absolute ${isPenalty ? '-bottom-6' : 'inset-0 pt-2'} left-0 right-0 flex items-center justify-center`}>
-              <span className={`font-cute text-6xl drop-shadow-lg tracking-tighter ${isPenalty ? 'text-rose-400' : 'text-white'}`}>
-                {points > 0 ? `+${points}` : points}
-              </span>
-           </div>
-        </div>
-
-        {/* Text */}
-        <div className={`mt-4 font-cute text-5xl drop-shadow-[0_4px_0_rgba(0,0,0,0.2)] tracking-widest stroke-2 ${isPenalty ? 'text-slate-200' : 'text-white animate-pulse'}`}>
-          {isPenalty ? '哎呀，要注意哦!' : '太棒了!'}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Main Application ---
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // State
   const [userName, setUserName] = useState(() => localStorage.getItem('app_username') || '');
-  const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'lavender');
+  const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'lemon');
+  const [familyId, setFamilyId] = useState(() => localStorage.getItem('app_family_id') || '');
 
   const [tasks, setTasks] = useState<Task[]>(() => {
     const saved = localStorage.getItem('app_tasks');
@@ -215,6 +62,11 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Cloud Sync State
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const isInitialMount = useRef(true);
+
   // Modal States
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
@@ -235,7 +87,7 @@ export default function App() {
     title: '', cost: 50, icon: '🎁'
   });
 
-  // Persistence Effects
+  // Persistence Effects (Local Storage)
   useEffect(() => localStorage.setItem('app_username', userName), [userName]);
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
   useEffect(() => localStorage.setItem('app_tasks', JSON.stringify(tasks)), [tasks]);
@@ -243,6 +95,95 @@ export default function App() {
   useEffect(() => localStorage.setItem('app_logs', JSON.stringify(logs)), [logs]);
   useEffect(() => localStorage.setItem('app_balance', balance.toString()), [balance]);
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
+  useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
+
+  // --- CLOUD SYNC LOGIC ---
+
+  // 1. Auto-load on startup if familyId exists
+  useEffect(() => {
+    if (familyId && isInitialMount.current) {
+      handleCloudLoad(true); // Silent load
+    }
+    isInitialMount.current = false;
+  }, [familyId]);
+
+  // 2. Auto-save debounce effect
+  useEffect(() => {
+    if (!familyId || isInitialMount.current) return;
+
+    const timer = setTimeout(() => {
+      handleCloudSave(true); // Silent save
+    }, 2000); // Auto-save 2 seconds after last change
+
+    return () => clearTimeout(timer);
+  }, [tasks, rewards, logs, balance, transactions, themeKey, userName, familyId]);
+
+  const handleCloudSave = async (silent = false) => {
+    if (!familyId) return;
+    if (!silent) setSyncStatus('syncing');
+    
+    const data = {
+      tasks,
+      rewards,
+      logs,
+      balance,
+      transactions,
+      themeKey,
+      userName
+    };
+
+    const success = await cloudService.saveData(familyId, data);
+    if (success) {
+      setSyncStatus('saved');
+      setLastSyncTime(Date.now());
+      if (!silent) {
+        setTimeout(() => setSyncStatus('idle'), 2000);
+      }
+    } else {
+      setSyncStatus('error');
+    }
+  };
+
+  const handleCloudLoad = async (silent = false) => {
+    if (!familyId) return;
+    if (!silent) setSyncStatus('syncing');
+
+    try {
+      const data = await cloudService.loadData(familyId);
+      if (data) {
+        setTasks(data.tasks || INITIAL_TASKS);
+        setRewards(data.rewards || INITIAL_REWARDS);
+        setLogs(data.logs || {});
+        setBalance(data.balance || 0);
+        setTransactions(data.transactions || []);
+        setThemeKey((data.themeKey as ThemeKey) || 'lemon');
+        if (data.userName) setUserName(data.userName);
+        
+        setSyncStatus('saved');
+        setLastSyncTime(Date.now());
+        if (!silent) alert('数据已从云端同步！');
+      } else {
+        // Only alert if explicit action
+        if (!silent) alert('未找到云端数据，请先上传。');
+        setSyncStatus('idle');
+      }
+    } catch (e) {
+      setSyncStatus('error');
+      if (!silent) alert('同步失败，请检查网络或 ID。');
+    }
+  };
+
+  const handleCreateFamily = () => {
+    const newId = cloudService.generateFamilyId();
+    setFamilyId(newId);
+    // Trigger immediate save to reserve the ID
+    setTimeout(() => handleCloudSave(), 100);
+  };
+
+  const copyFamilyId = () => {
+    navigator.clipboard.writeText(familyId);
+    alert('家庭ID已复制！发送给其他家庭成员即可同步。');
+  };
 
   // Celebration Timer
   useEffect(() => {
@@ -269,13 +210,8 @@ export default function App() {
 
     const interval: any = setInterval(function() {
       const timeLeft = animationEnd - Date.now();
-
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
-      }
-
+      if (timeLeft <= 0) return clearInterval(interval);
       const particleCount = 40 * (timeLeft / duration);
-      
       confetti({
         ...defaults, 
         particleCount,
@@ -290,22 +226,22 @@ export default function App() {
   };
 
   const triggerRainConfetti = () => {
-    // Create a "Rain" effect for penalty
+    // Create a "Heavy Rain" effect for penalty
     const duration = 1000;
     const end = Date.now() + duration;
 
     (function frame() {
       confetti({
-        particleCount: 4,
-        angle: 90, // Straight down
-        spread: 15, // Narrow spread
-        origin: { x: Math.random(), y: -0.1 }, // Random X at top
-        colors: ['#94a3b8', '#64748b', '#cbd5e1'], // Sad greys/blues
-        shapes: ['circle'],
-        gravity: 2.5, // Heavy fall
-        scalar: 0.8,
+        particleCount: 6,
+        angle: 270, // Straight down
+        spread: 10, 
+        origin: { x: Math.random(), y: -0.2 }, 
+        colors: ['#64748b', '#94a3b8', '#475569'], // Dark Slates
+        shapes: ['circle'], // Rain drops
+        gravity: 3.5, // Heavy gravity
+        scalar: 0.6,
         drift: 0,
-        ticks: 200
+        ticks: 400
       });
 
       if (Date.now() < end) {
@@ -316,7 +252,6 @@ export default function App() {
 
   const updateBalance = (amount: number, description: string, dateContext?: Date) => {
     setBalance(prev => prev + amount);
-    
     let txDate = new Date();
     if (dateContext) {
         txDate = new Date(dateContext);
@@ -324,9 +259,7 @@ export default function App() {
         txDate.setHours(now.getHours());
         txDate.setMinutes(now.getMinutes());
         txDate.setSeconds(now.getSeconds());
-        txDate.setMilliseconds(now.getMilliseconds());
     }
-
     const newTx: Transaction = {
       id: Date.now().toString(),
       date: txDate.toISOString(),
@@ -344,15 +277,12 @@ export default function App() {
 
     let newLog;
     if (isCompleted) {
-      // Undo
       newLog = currentLog.filter(id => id !== task.id);
       updateBalance(-task.stars, `撤销: ${task.title}`, currentDate);
     } else {
-      // Complete
       newLog = [...currentLog, task.id];
       updateBalance(task.stars, `完成: ${task.title}`, currentDate);
       
-      // Trigger celebration or penalty anim
       if (task.category === TaskCategory.PENALTY) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
         triggerRainConfetti();
@@ -361,7 +291,6 @@ export default function App() {
         triggerStarConfetti();
       }
     }
-
     setLogs({ ...logs, [dateKey]: newLog });
   };
 
@@ -447,17 +376,15 @@ export default function App() {
                   className={`
                     relative overflow-hidden p-3 pl-4 rounded-[1.2rem] border-2 transition-all duration-300 bounce-click cursor-pointer flex justify-between items-center min-h-[70px] group
                     ${isDone 
-                      ? (isPenalty ? 'bg-rose-100 border-rose-400 shadow-inner grayscale-[0.3]' : 'bg-lime-100 border-lime-400 shadow-inner opacity-90 scale-[0.98]') 
+                      ? (isPenalty ? 'bg-slate-200 border-slate-300 shadow-inner grayscale-[0.8]' : 'bg-lime-100 border-lime-400 shadow-inner opacity-90 scale-[0.98]') 
                       : `${style.bg} ${style.border} shadow-[0_3px_0_0_rgba(0,0,0,0.05)] hover:shadow-[0_4px_0_0_rgba(0,0,0,0.05)] hover:-translate-y-0.5 bg-white`}
                   `}
                 >
                     <div className="flex items-center gap-4 z-10 flex-1">
-                        <div className={`
-                            w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300
-                        `}>
+                        <div className="w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300">
                             {isDone ? (
                                 isPenalty 
-                                    ? <div className="bg-rose-500 rounded-full w-7 h-7 flex items-center justify-center text-white shadow-md animate-pop"><XCircle size={18} strokeWidth={3} /></div>
+                                    ? <div className="bg-slate-500 rounded-full w-7 h-7 flex items-center justify-center text-white shadow-md animate-pop"><XCircle size={18} strokeWidth={3} /></div>
                                     : <div className="bg-lime-500 rounded-full w-7 h-7 flex items-center justify-center text-white shadow-md animate-pop"><CheckCircle2 size={18} strokeWidth={3} /></div>
                             ) : (
                                 <Circle size={28} className="text-slate-300 group-hover:text-slate-400 transition-colors" strokeWidth={1.5} />
@@ -478,14 +405,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF9F0] pb-28 transition-colors duration-500">
-      {/* Celebration Overlay */}
+    <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
       <CelebrationOverlay isVisible={showCelebration.show} points={showCelebration.points} type={showCelebration.type} />
 
-      {/* Top Bar */}
       <Header balance={balance} userName={userName} themeKey={themeKey} />
 
-      {/* Main Content Area */}
       <div className="max-w-5xl mx-auto pt-2 px-4 md:px-6">
         
         {/* --- DAILY VIEW --- */}
@@ -595,7 +519,7 @@ export default function App() {
                     设置管理
                 </h2>
 
-                {/* User Profile Settings */}
+                {/* User Profile */}
                  <div className="bg-white rounded-[1.8rem] p-4 mb-6 shadow-sm border border-slate-100 flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <div className={`${activeTheme.light} p-2.5 rounded-full`}>
@@ -612,6 +536,93 @@ export default function App() {
                     >
                         <Edit3 size={18} />
                     </button>
+                </div>
+
+                {/* Cloud Sync Section */}
+                <div className={`bg-white rounded-[1.8rem] p-5 mb-6 shadow-sm border-2 ${familyId ? activeTheme.border : 'border-slate-100'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Cloud className={familyId ? activeTheme.accent : 'text-slate-400'} size={18} />
+                            <span className="text-xs text-slate-400 font-bold uppercase">多设备云同步</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           {familyId && syncStatus === 'syncing' && <RefreshCw size={14} className="animate-spin text-slate-400"/>}
+                           {familyId && syncStatus === 'saved' && <span className="text-[10px] font-bold text-lime-500 bg-lime-50 px-2 py-1 rounded-full">已同步</span>}
+                           {familyId && syncStatus === 'error' && <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-1 rounded-full">同步失败</span>}
+                        </div>
+                    </div>
+
+                    {!familyId ? (
+                        <div className="space-y-3">
+                            <p className="text-sm text-slate-500 mb-2">在不同设备(手机、平板)之间同步星星和任务。</p>
+                             {CLOUD_API_URL.includes('example') && (
+                                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-3">
+                                     ⚠️ 提示：后端 API 地址未配置，请在代码 constants.ts 中更新 CLOUD_API_URL。
+                                 </div>
+                             )}
+                            <button 
+                                onClick={handleCreateFamily}
+                                className={`w-full py-3 rounded-xl font-bold text-white shadow-md ${activeTheme.button}`}
+                            >
+                                创建新的家庭同步ID
+                            </button>
+                            <div className="flex gap-2">
+                                <input 
+                                    placeholder="输入已有家庭ID" 
+                                    className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-3 outline-none focus:border-slate-300 text-slate-700 font-mono text-sm"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            setFamilyId(e.currentTarget.value);
+                                            setTimeout(() => handleCloudLoad(), 100);
+                                        }
+                                    }}
+                                />
+                                <button 
+                                    onClick={(e) => {
+                                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                        if (input.value) {
+                                            setFamilyId(input.value);
+                                            setTimeout(() => handleCloudLoad(), 100);
+                                        }
+                                    }}
+                                    className="bg-slate-100 text-slate-600 px-4 rounded-xl font-bold hover:bg-slate-200"
+                                >
+                                    加入
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                             <div className="bg-slate-50 rounded-xl p-3 mb-3 flex items-center justify-between border border-slate-100">
+                                 <div>
+                                     <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">当前家庭 ID</p>
+                                     <p className="font-mono font-bold text-slate-700 text-sm tracking-wider">{familyId}</p>
+                                 </div>
+                                 <button onClick={copyFamilyId} className="p-2 bg-white rounded-lg shadow-sm text-slate-500 hover:text-slate-700">
+                                     <Copy size={16} />
+                                 </button>
+                             </div>
+                             
+                             <div className="grid grid-cols-2 gap-3">
+                                 <button 
+                                     onClick={() => handleCloudSave()}
+                                     className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold bg-white border-2 hover:bg-slate-50 transition-colors ${activeTheme.border} ${activeTheme.accent}`}
+                                 >
+                                     <Upload size={16}/> 手动上传
+                                 </button>
+                                 <button 
+                                     onClick={() => handleCloudLoad()}
+                                     className="flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                                 >
+                                     <Download size={16}/> 手动下载
+                                 </button>
+                             </div>
+                             
+                             <div className="mt-4 text-center">
+                                <button onClick={() => {if(window.confirm('确定要断开同步吗？本地数据会保留。')) setFamilyId('')}} className="text-xs text-slate-400 underline hover:text-rose-400">断开连接</button>
+                             </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Theme Selector */}
@@ -702,7 +713,7 @@ export default function App() {
                     </div>
                 </div>
                 
-                {/* Reset Data */}
+                {/* Reset */}
                 <button 
                     onClick={() => {
                         if(window.confirm("警告：这将清空所有数据！确定吗？")) {
@@ -718,19 +729,11 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-6 left-4 right-4 z-30">
-        <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-2xl mx-auto px-6 h-20 flex justify-between items-center">
-            <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} activeClass={activeTheme.accent} />
-            <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} activeClass={activeTheme.accent} />
-            <NavBtn icon={<CalendarIcon />} label="记录" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} activeClass={activeTheme.accent} />
-            <NavBtn icon={<Settings />} label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} activeClass="text-slate-500" />
-        </div>
-      </nav>
+      <NavBar activeTab={activeTab} setActiveTab={setActiveTab} themeKey={themeKey} />
 
       {/* --- MODALS --- */}
 
-      {/* Name Entry Modal */}
+      {/* Name Entry */}
       {isNameModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
               <div className={`bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 ${activeTheme.border}`}>
@@ -903,27 +906,4 @@ export default function App() {
 
     </div>
   );
-}
-
-const NavBtn = ({ icon, label, active, onClick, activeClass }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, activeClass: string }) => {
-    // activeClass is something like "text-purple-600"
-    // we need a lighter bg version for the container, e.g. "bg-purple-100"
-    // Simplified mapping for bg based on text color logic roughly
-    const bgClass = active ? activeClass.replace('text-', 'bg-').replace('600', '100').replace('500', '100') : '';
-
-    return (
-        <button 
-            onClick={onClick}
-            className={`flex flex-col items-center justify-center w-16 transition-all duration-300 group ${active ? '-translate-y-1' : 'text-slate-300 hover:text-slate-400'}`}
-        >
-            <div className={`p-2.5 rounded-xl transition-all duration-300 ${active ? `${bgClass} shadow-sm rotate-3 scale-110` : 'group-hover:bg-slate-50'}`}>
-                {React.cloneElement(icon as React.ReactElement<any>, { 
-                    size: 24, 
-                    strokeWidth: active ? 3 : 2.5,
-                    className: active ? activeClass : "currentColor"
-                })}
-            </div>
-            <span className={`text-[10px] font-bold mt-1 transition-opacity duration-300 ${active ? `opacity-100 ${activeClass}` : 'opacity-0'}`}>{label}</span>
-        </button>
-    );
 }

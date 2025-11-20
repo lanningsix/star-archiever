@@ -15,11 +15,10 @@
     <style>
       body {
         font-family: 'Nunito', 'ZCOOL KuaiLe', sans-serif;
-        background-color: #fff9f0; /* Warm Cream - Eye protection */
+        background-color: #fff9f0; /* Warm Cream */
         -webkit-tap-highlight-color: transparent;
         color: #4a4a4a;
       }
-      /* Custom scrollbar for task lists */
       .hide-scrollbar::-webkit-scrollbar {
         display: none;
       }
@@ -27,6 +26,7 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+
       .bounce-click:active {
         transform: scale(0.95);
       }
@@ -34,7 +34,6 @@
         font-family: 'ZCOOL KuaiLe', cursive;
       }
 
-      /* Pop animation for task completion icons */
       @keyframes pop {
         0% {
           transform: scale(1);
@@ -64,7 +63,7 @@
         animation: slideUp 0.5s ease-out forwards;
       }
 
-      /* Stronger Star Celebration Animation */
+      /* Celebration Animations */
       @keyframes starBounceIn {
         0% {
           transform: scale(0) rotate(-45deg);
@@ -111,30 +110,36 @@
         animation: fadeOut 0.3s ease-out forwards;
       }
 
-      /* Penalty Specific Animations */
+      /* More intense shake for penalty */
       @keyframes shake {
         0%,
         100% {
           transform: translateX(0);
         }
-        10%,
-        30%,
-        50%,
-        70%,
-        90% {
-          transform: translateX(-6px) rotate(-2deg);
+        10% {
+          transform: translateX(-8px) rotate(-5deg);
         }
-        20%,
-        40%,
-        60%,
-        80% {
-          transform: translateX(6px) rotate(2deg);
+        20% {
+          transform: translateX(8px) rotate(5deg);
+        }
+        30% {
+          transform: translateX(-8px) rotate(-5deg);
+        }
+        40% {
+          transform: translateX(8px) rotate(5deg);
+        }
+        50% {
+          transform: translateX(-4px) rotate(-2deg);
+        }
+        60% {
+          transform: translateX(4px) rotate(2deg);
         }
       }
       .animate-shake {
-        animation: shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
       }
 
+      /* Rain Drop Effect */
       @keyframes rainDrop {
         0% {
           transform: translateY(-20px);
@@ -144,12 +149,9 @@
           opacity: 1;
         }
         100% {
-          transform: translateY(20px);
+          transform: translateY(30px);
           opacity: 0;
         }
-      }
-      .animate-rain {
-        animation: rainDrop 1s linear infinite;
       }
     </style>
     <script type="importmap">
