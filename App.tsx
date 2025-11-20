@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Calendar as CalendarIcon, ShoppingBag, Settings, Plus, Trash2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Zap, User, Edit3, Circle, X, Smile, BrainCircuit, Heart } from 'lucide-react';
+import { Star, Calendar as CalendarIcon, ShoppingBag, Settings, Plus, Trash2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Zap, User, Edit3, Circle, X, Smile, BrainCircuit, Heart, CloudRain, CloudLightning, Palette } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS } from './constants';
 import { Task, Reward, TaskCategory, Transaction } from './types';
@@ -13,41 +13,93 @@ const COMMON_EMOJIS = [
   '🦄', '🦕', '🚀', '👑', '🌈', '🍩'
 ];
 
-// --- Theme Colors (Candy Kingdom) ---
-const THEME = {
-  primary: 'from-pink-400 to-purple-400',
-  bg: 'bg-[#FFF9F0]',
-  cardBg: 'bg-white',
-  text: 'text-slate-700',
-  heading: 'text-slate-800',
-  categories: {
+// --- Themes Configuration ---
+type ThemeKey = 'lemon' | 'mint' | 'blueberry' | 'lavender';
+
+const THEMES: Record<ThemeKey, { 
+  name: string;
+  gradient: string;
+  solid: string;
+  light: string;
+  border: string;
+  shadow: string;
+  accent: string;
+  button: string;
+}> = {
+  lemon: {
+    name: '柠檬糖黄',
+    gradient: 'from-yellow-400 to-orange-400',
+    solid: 'bg-yellow-400',
+    light: 'bg-yellow-50',
+    border: 'border-yellow-200',
+    shadow: 'shadow-yellow-200',
+    accent: 'text-yellow-600',
+    button: 'bg-yellow-400 hover:bg-yellow-500'
+  },
+  mint: {
+    name: '薄荷奶油绿',
+    gradient: 'from-emerald-400 to-teal-400',
+    solid: 'bg-emerald-400',
+    light: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    shadow: 'shadow-emerald-200',
+    accent: 'text-emerald-600',
+    button: 'bg-emerald-400 hover:bg-emerald-500'
+  },
+  blueberry: {
+    name: '蓝莓棉花糖',
+    gradient: 'from-blue-400 to-indigo-400',
+    solid: 'bg-blue-400',
+    light: 'bg-blue-50',
+    border: 'border-blue-200',
+    shadow: 'shadow-blue-200',
+    accent: 'text-blue-600',
+    button: 'bg-blue-400 hover:bg-blue-500'
+  },
+  lavender: {
+    name: '梦幻薰衣草',
+    gradient: 'from-purple-400 to-pink-400',
+    solid: 'bg-purple-400',
+    light: 'bg-purple-50',
+    border: 'border-purple-200',
+    shadow: 'shadow-purple-200',
+    accent: 'text-purple-600',
+    button: 'bg-purple-400 hover:bg-purple-500'
+  }
+};
+
+// Category styling remains consistent regardless of theme to maintain semantic meaning
+const CATEGORY_STYLES = {
     [TaskCategory.LIFE]: { bg: 'bg-lime-50', border: 'border-lime-200', text: 'text-lime-700', iconBg: 'bg-lime-400', accent: 'text-lime-500' },
     [TaskCategory.BEHAVIOR]: { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', iconBg: 'bg-sky-400', accent: 'text-sky-500' },
     [TaskCategory.BONUS]: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', iconBg: 'bg-amber-400', accent: 'text-amber-500' },
     [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
-  }
 };
 
 // --- Sub-Components ---
 
-const Header = ({ balance, userName }: { balance: number, userName: string }) => (
-  <div className={`bg-gradient-to-b ${THEME.primary} text-white p-4 pt-8 rounded-b-[2.5rem] shadow-xl sticky top-0 z-20`}>
-    <div className="flex justify-between items-center max-w-5xl mx-auto px-2">
-      <div>
-        <h1 className="text-2xl font-cute tracking-wide drop-shadow-sm">
-          {userName ? `${userName}的` : '小小'}星系 🦄
-        </h1>
-        <p className="text-pink-100 text-sm font-medium opacity-90 mt-1">今天也要棒棒的！</p>
-      </div>
-      <div className="flex items-center bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full border-2 border-white/40 shadow-lg transform hover:scale-105 transition-transform">
-        <span className="text-3xl font-cute text-yellow-300 drop-shadow-md mr-2">{balance}</span>
-        <Star className="w-6 h-6 text-yellow-300 fill-yellow-300 animate-pulse" />
+const Header = ({ balance, userName, themeKey }: { balance: number, userName: string, themeKey: ThemeKey }) => {
+  const theme = THEMES[themeKey];
+  return (
+    <div className={`bg-gradient-to-b ${theme.gradient} text-white p-4 pt-8 rounded-b-[2.5rem] shadow-xl sticky top-0 z-20 transition-all duration-500`}>
+      <div className="flex justify-between items-center max-w-5xl mx-auto px-2">
+        <div>
+          <h1 className="text-2xl font-cute tracking-wide drop-shadow-sm">
+            {userName ? `${userName}的` : '小小'}星系 🦄
+          </h1>
+          <p className="text-white/90 text-sm font-medium mt-1">今天也要棒棒的！</p>
+        </div>
+        <div className="flex items-center bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full border-2 border-white/40 shadow-lg transform hover:scale-105 transition-transform">
+          <span className="text-3xl font-cute text-yellow-300 drop-shadow-md mr-2">{balance}</span>
+          <Star className="w-6 h-6 text-yellow-300 fill-yellow-300 animate-pulse" />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const DateNavigator = ({ date, setDate }: { date: Date, setDate: (d: Date) => void }) => {
+const DateNavigator = ({ date, setDate, themeKey }: { date: Date, setDate: (d: Date) => void, themeKey: ThemeKey }) => {
+  const theme = THEMES[themeKey];
   const formatDate = (d: Date) => {
     const y = d.getFullYear();
     const m = d.getMonth() + 1;
@@ -63,12 +115,12 @@ const DateNavigator = ({ date, setDate }: { date: Date, setDate: (d: Date) => vo
   };
 
   return (
-    <div className="flex items-center justify-between bg-white p-2 rounded-full shadow-sm mx-auto mt-4 mb-4 border-2 border-purple-50 max-w-xs">
-      <button onClick={() => changeDate(-1)} className="p-1.5 hover:bg-purple-50 rounded-full text-purple-400 transition-colors">
+    <div className={`flex items-center justify-between bg-white p-2 rounded-full shadow-sm mx-auto mt-4 mb-4 border-2 ${theme.border} max-w-xs transition-colors duration-500`}>
+      <button onClick={() => changeDate(-1)} className={`p-1.5 ${theme.light} rounded-full ${theme.accent} hover:bg-opacity-80 transition-colors`}>
         <ChevronLeft size={20} strokeWidth={3} />
       </button>
-      <span className="font-cute text-lg text-purple-800">{formatDate(date)}</span>
-      <button onClick={() => changeDate(1)} className="p-1.5 hover:bg-purple-50 rounded-full text-purple-400 transition-colors">
+      <span className={`font-cute text-lg ${theme.accent}`}>{formatDate(date)}</span>
+      <button onClick={() => changeDate(1)} className={`p-1.5 ${theme.light} rounded-full ${theme.accent} hover:bg-opacity-80 transition-colors`}>
         <ChevronRight size={20} strokeWidth={3} />
       </button>
     </div>
@@ -84,20 +136,22 @@ const CelebrationOverlay = ({ isVisible, points, type }: { isVisible: boolean, p
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center pointer-events-none">
       {/* Dim background */}
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] animate-fade-out" style={{ animationDuration: '1.2s', animationDelay: '0.8s', animationFillMode: 'forwards' }}></div>
+      <div className={`absolute inset-0 backdrop-blur-[2px] animate-fade-out ${isPenalty ? 'bg-slate-900/60' : 'bg-black/30'}`} style={{ animationDuration: '1.5s', animationDelay: '0.8s', animationFillMode: 'forwards' }}></div>
       
       {/* Animation Container */}
-      <div className="relative animate-star-enter z-10 flex flex-col items-center justify-center">
+      <div className={`relative z-10 flex flex-col items-center justify-center ${isPenalty ? 'animate-shake' : 'animate-star-enter'}`}>
         
         {/* Glow */}
-        <div className={`absolute inset-0 rounded-full blur-3xl w-80 h-80 animate-pulse ${isPenalty ? 'bg-rose-400/20' : 'bg-yellow-400/30'}`}></div>
+        <div className={`absolute inset-0 rounded-full blur-3xl w-80 h-80 ${isPenalty ? 'bg-slate-500/30 animate-pulse' : 'bg-yellow-400/30 animate-pulse'}`}></div>
         
         {/* Main Icon */}
-        <div className="relative mb-4">
+        <div className="relative mb-8">
            {isPenalty ? (
              <div className="relative">
-                 <Zap size={140} className="text-rose-400 fill-rose-400 drop-shadow-[0_0_15px_rgba(251,113,133,0.8)] animate-float" strokeWidth={1.5} />
-                 <Star size={40} className="absolute -top-2 right-0 text-rose-200 fill-rose-200 animate-bounce" />
+                 <CloudLightning size={150} className="text-slate-300 fill-slate-600 drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]" strokeWidth={1.5} />
+                 <div className="absolute inset-0 flex justify-center items-center pt-8">
+                    <CloudRain size={80} className="text-blue-300 fill-blue-400 animate-bounce opacity-80" style={{animationDuration: '1.5s'}} />
+                 </div>
              </div>
            ) : (
              <div className="relative">
@@ -110,16 +164,16 @@ const CelebrationOverlay = ({ isVisible, points, type }: { isVisible: boolean, p
            )}
            
            {/* Points Text */}
-           <div className="absolute inset-0 flex items-center justify-center pt-2">
-              <span className={`font-cute text-6xl drop-shadow-lg tracking-tighter ${isPenalty ? 'text-white' : 'text-white'}`}>
+           <div className={`absolute ${isPenalty ? '-bottom-6' : 'inset-0 pt-2'} left-0 right-0 flex items-center justify-center`}>
+              <span className={`font-cute text-6xl drop-shadow-lg tracking-tighter ${isPenalty ? 'text-rose-400' : 'text-white'}`}>
                 {points > 0 ? `+${points}` : points}
               </span>
            </div>
         </div>
 
         {/* Text */}
-        <div className="mt-4 font-cute text-5xl text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.2)] tracking-widest stroke-2 animate-pulse">
-          {isPenalty ? '继续加油!' : '太棒了!'}
+        <div className={`mt-4 font-cute text-5xl drop-shadow-[0_4px_0_rgba(0,0,0,0.2)] tracking-widest stroke-2 ${isPenalty ? 'text-slate-200' : 'text-white animate-pulse'}`}>
+          {isPenalty ? '哎呀，要注意哦!' : '太棒了!'}
         </div>
       </div>
     </div>
@@ -134,7 +188,8 @@ export default function App() {
   
   // State
   const [userName, setUserName] = useState(() => localStorage.getItem('app_username') || '');
-  
+  const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'lavender');
+
   const [tasks, setTasks] = useState<Task[]>(() => {
     const saved = localStorage.getItem('app_tasks');
     return saved ? JSON.parse(saved) : INITIAL_TASKS;
@@ -182,6 +237,7 @@ export default function App() {
 
   // Persistence Effects
   useEffect(() => localStorage.setItem('app_username', userName), [userName]);
+  useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
   useEffect(() => localStorage.setItem('app_tasks', JSON.stringify(tasks)), [tasks]);
   useEffect(() => localStorage.setItem('app_rewards', JSON.stringify(rewards)), [rewards]);
   useEffect(() => localStorage.setItem('app_logs', JSON.stringify(logs)), [logs]);
@@ -207,7 +263,6 @@ export default function App() {
   };
 
   const triggerStarConfetti = () => {
-    // Fire stars from the center
     const duration = 1200;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 40, spread: 360, ticks: 80, zIndex: 150 };
@@ -221,13 +276,12 @@ export default function App() {
 
       const particleCount = 40 * (timeLeft / duration);
       
-      // Center burst
       confetti({
         ...defaults, 
         particleCount,
         origin: { x: 0.5, y: 0.5 },
         shapes: ['star'],
-        colors: ['#FFD700', '#FFA500', '#FFFF00', '#F0E68C'], // Golds and Yellows
+        colors: ['#FFD700', '#FFA500', '#FFFF00', '#F0E68C'],
         scalar: 1.2,
         drift: 0,
         gravity: 0.8
@@ -235,17 +289,29 @@ export default function App() {
     }, 200);
   };
 
-  const triggerPenaltyConfetti = () => {
-    confetti({
-        particleCount: 80,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#fda4af', '#e2e8f0', '#64748b'],
-        disableForReducedMotion: true,
-        gravity: 1.2,
+  const triggerRainConfetti = () => {
+    // Create a "Rain" effect for penalty
+    const duration = 1000;
+    const end = Date.now() + duration;
+
+    (function frame() {
+      confetti({
+        particleCount: 4,
+        angle: 90, // Straight down
+        spread: 15, // Narrow spread
+        origin: { x: Math.random(), y: -0.1 }, // Random X at top
+        colors: ['#94a3b8', '#64748b', '#cbd5e1'], // Sad greys/blues
+        shapes: ['circle'],
+        gravity: 2.5, // Heavy fall
         scalar: 0.8,
-        shapes: ['circle']
+        drift: 0,
+        ticks: 200
       });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    }());
   };
 
   const updateBalance = (amount: number, description: string, dateContext?: Date) => {
@@ -286,10 +352,10 @@ export default function App() {
       newLog = [...currentLog, task.id];
       updateBalance(task.stars, `完成: ${task.title}`, currentDate);
       
-      // Trigger celebration
+      // Trigger celebration or penalty anim
       if (task.category === TaskCategory.PENALTY) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
-        triggerPenaltyConfetti();
+        triggerRainConfetti();
       } else {
         setShowCelebration({ show: true, points: task.stars, type: 'success' });
         triggerStarConfetti();
@@ -303,7 +369,6 @@ export default function App() {
     if (balance >= reward.cost) {
       if (window.confirm(`确定要花费 ${reward.cost} 星星兑换 "${reward.title}" 吗？`)) {
         updateBalance(-reward.cost, `兑换: ${reward.title}`);
-        // Simple confetti for spending
         confetti({
             particleCount: 100,
             spread: 70,
@@ -326,7 +391,7 @@ export default function App() {
       category: newTask.category 
     }]);
     setIsTaskModalOpen(false);
-    setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE }); // Reset
+    setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE }); 
   };
 
   const handleSaveReward = () => {
@@ -338,10 +403,11 @@ export default function App() {
       icon: newReward.icon
     }]);
     setIsRewardModalOpen(false);
-    setNewReward({ title: '', cost: 50, icon: '🎁' }); // Reset
+    setNewReward({ title: '', cost: 50, icon: '🎁' });
   };
 
-  // Calculated Values for Views
+  // Values
+  const activeTheme = THEMES[themeKey];
   const dateKey = getDateKey(currentDate);
   const dailyTransactions = transactions.filter(tx => {
     const txDate = new Date(tx.date);
@@ -354,14 +420,14 @@ export default function App() {
   const renderTaskList = (category: TaskCategory) => {
     const categoryTasks = tasks.filter(t => t.category === category);
     const completedIds = logs[dateKey] || [];
-    const theme = THEME.categories[category];
+    const style = CATEGORY_STYLES[category];
 
     if (categoryTasks.length === 0) return null;
 
     return (
       <div className="mb-6 animate-slide-up">
-        <h3 className={`font-cute text-lg mb-3 px-2 flex items-center ${theme.text}`}>
-          <span className={`mr-2 p-1.5 rounded-xl ${theme.iconBg} text-white shadow-sm transform -rotate-6`}>
+        <h3 className={`font-cute text-lg mb-3 px-2 flex items-center ${style.text}`}>
+          <span className={`mr-2 p-1.5 rounded-xl ${style.iconBg} text-white shadow-sm transform -rotate-6`}>
             {category === TaskCategory.LIFE && <Smile size={18} />}
             {category === TaskCategory.BEHAVIOR && <BrainCircuit size={18} />}
             {category === TaskCategory.BONUS && <Heart size={18} />}
@@ -381,12 +447,11 @@ export default function App() {
                   className={`
                     relative overflow-hidden p-3 pl-4 rounded-[1.2rem] border-2 transition-all duration-300 bounce-click cursor-pointer flex justify-between items-center min-h-[70px] group
                     ${isDone 
-                      ? (isPenalty ? 'bg-rose-100 border-rose-400 shadow-inner' : 'bg-lime-100 border-lime-400 shadow-inner opacity-90 scale-[0.98]') 
-                      : `${theme.bg} ${theme.border} shadow-[0_3px_0_0_rgba(0,0,0,0.05)] hover:shadow-[0_4px_0_0_rgba(0,0,0,0.05)] hover:-translate-y-0.5 bg-white`}
+                      ? (isPenalty ? 'bg-rose-100 border-rose-400 shadow-inner grayscale-[0.3]' : 'bg-lime-100 border-lime-400 shadow-inner opacity-90 scale-[0.98]') 
+                      : `${style.bg} ${style.border} shadow-[0_3px_0_0_rgba(0,0,0,0.05)] hover:shadow-[0_4px_0_0_rgba(0,0,0,0.05)] hover:-translate-y-0.5 bg-white`}
                   `}
                 >
                     <div className="flex items-center gap-4 z-10 flex-1">
-                         {/* Checkbox Visual */}
                         <div className={`
                             w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300
                         `}>
@@ -399,7 +464,6 @@ export default function App() {
                             )}
                         </div>
                         
-                        {/* Text */}
                         <span className={`font-bold text-lg leading-tight ${isDone ? 'text-slate-400 line-through decoration-2 decoration-slate-300' : 'text-slate-700'}`}>{task.title}</span>
                     </div>
                     <div className={`font-cute text-xl z-10 ml-2 ${isPenalty ? 'text-rose-500' : 'text-amber-400 drop-shadow-sm'}`}>
@@ -414,12 +478,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF9F0] pb-28">
+    <div className="min-h-screen bg-[#FFF9F0] pb-28 transition-colors duration-500">
       {/* Celebration Overlay */}
       <CelebrationOverlay isVisible={showCelebration.show} points={showCelebration.points} type={showCelebration.type} />
 
       {/* Top Bar */}
-      <Header balance={balance} userName={userName} />
+      <Header balance={balance} userName={userName} themeKey={themeKey} />
 
       {/* Main Content Area */}
       <div className="max-w-5xl mx-auto pt-2 px-4 md:px-6">
@@ -427,7 +491,7 @@ export default function App() {
         {/* --- DAILY VIEW --- */}
         {activeTab === 'daily' && (
           <>
-            <DateNavigator date={currentDate} setDate={setCurrentDate} />
+            <DateNavigator date={currentDate} setDate={setCurrentDate} themeKey={themeKey} />
             <div className="pb-6">
                 {renderTaskList(TaskCategory.LIFE)}
                 {renderTaskList(TaskCategory.BEHAVIOR)}
@@ -447,13 +511,13 @@ export default function App() {
         {/* --- STORE VIEW --- */}
         {activeTab === 'store' && (
           <div className="py-4 animate-slide-up">
-            <h2 className="text-xl font-cute text-purple-800 mb-4 flex items-center ml-2">
-                <span className="bg-purple-100 p-2 rounded-xl mr-3 shadow-sm rotate-3"><ShoppingBag className="text-purple-500 w-5 h-5" /></span>
+            <h2 className={`text-xl font-cute mb-4 flex items-center ml-2 ${activeTheme.accent}`}>
+                <span className={`${activeTheme.light} p-2 rounded-xl mr-3 shadow-sm rotate-3`}><ShoppingBag className={`w-5 h-5 ${activeTheme.accent}`} /></span>
                 兑换商城
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {rewards.map(reward => (
-                    <div key={reward.id} className="bg-white rounded-[1.8rem] p-4 flex flex-col items-center shadow-[0_4px_0_0_rgba(0,0,0,0.04)] border-2 border-slate-100 relative overflow-hidden hover:border-purple-200 transition-all duration-300 group">
+                    <div key={reward.id} className={`bg-white rounded-[1.8rem] p-4 flex flex-col items-center shadow-[0_4px_0_0_rgba(0,0,0,0.04)] border-2 border-slate-100 relative overflow-hidden hover:${activeTheme.border} transition-all duration-300 group`}>
                         <div className="text-5xl mb-3 transform group-hover:scale-110 transition-transform duration-300 drop-shadow-sm">{reward.icon}</div>
                         <h3 className="font-bold text-slate-700 text-center mb-2 text-base h-10 flex items-center justify-center leading-snug">{reward.title}</h3>
                         <button 
@@ -461,7 +525,7 @@ export default function App() {
                             className={`
                                 w-full py-2 rounded-xl font-cute text-lg text-white flex items-center justify-center gap-2 transition-all bounce-click shadow-md
                                 ${balance >= reward.cost 
-                                    ? 'bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 shadow-purple-200' 
+                                    ? `${activeTheme.button} ${activeTheme.shadow}` 
                                     : 'bg-slate-200 cursor-not-allowed text-slate-400'}
                             `}
                             disabled={balance < reward.cost}
@@ -478,12 +542,12 @@ export default function App() {
         {/* --- CALENDAR/HISTORY VIEW --- */}
         {activeTab === 'calendar' && (
            <div className="py-4 animate-slide-up max-w-3xl mx-auto">
-               <h2 className="text-xl font-cute text-blue-800 mb-4 flex items-center ml-2">
-                   <span className="bg-blue-100 p-2 rounded-xl mr-3 shadow-sm -rotate-3"><CalendarIcon className="text-blue-500 w-5 h-5" /></span>
+               <h2 className={`text-xl font-cute mb-4 flex items-center ml-2 ${activeTheme.accent}`}>
+                   <span className={`${activeTheme.light} p-2 rounded-xl mr-3 shadow-sm -rotate-3`}><CalendarIcon className={`w-5 h-5 ${activeTheme.accent}`} /></span>
                    积分记录
                </h2>
                
-               <DateNavigator date={currentDate} setDate={setCurrentDate} />
+               <DateNavigator date={currentDate} setDate={setCurrentDate} themeKey={themeKey} />
 
                <div className="grid grid-cols-2 gap-4 mb-6">
                    <div className="bg-lime-100 p-4 rounded-[1.8rem] border-2 border-lime-200 flex flex-col items-center shadow-sm">
@@ -534,8 +598,8 @@ export default function App() {
                 {/* User Profile Settings */}
                  <div className="bg-white rounded-[1.8rem] p-4 mb-6 shadow-sm border border-slate-100 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <div className="bg-purple-100 p-2.5 rounded-full">
-                            <User size={22} className="text-purple-500" />
+                        <div className={`${activeTheme.light} p-2.5 rounded-full`}>
+                            <User size={22} className={activeTheme.accent} />
                         </div>
                         <div>
                             <div className="text-[10px] text-slate-400 font-bold uppercase">小朋友名字</div>
@@ -550,6 +614,32 @@ export default function App() {
                     </button>
                 </div>
 
+                {/* Theme Selector */}
+                <div className="bg-white rounded-[1.8rem] p-5 mb-6 shadow-sm border border-slate-100">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Palette className="text-slate-400 w-4 h-4" />
+                        <span className="text-xs text-slate-400 font-bold uppercase">选择主题</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {(Object.entries(THEMES) as [ThemeKey, typeof THEMES['lemon']][]).map(([key, theme]) => (
+                            <button
+                                key={key}
+                                onClick={() => setThemeKey(key)}
+                                className={`
+                                    relative p-3 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 overflow-hidden
+                                    ${themeKey === key ? `border-${theme.accent.split('-')[1]} bg-${theme.light.split('-')[1]}` : 'border-slate-100 hover:border-slate-200'}
+                                `}
+                            >
+                                <div className={`w-full h-8 rounded-lg bg-gradient-to-r ${theme.gradient}`}></div>
+                                <span className={`text-xs font-bold ${themeKey === key ? theme.accent : 'text-slate-500'}`}>{theme.name}</span>
+                                {themeKey === key && (
+                                    <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${theme.solid}`}></div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="grid md:grid-cols-2 gap-5 items-start">
                     {/* Task Management */}
                     <div>
@@ -557,7 +647,7 @@ export default function App() {
                             <h3 className="font-bold text-slate-600 text-base">任务列表</h3>
                             <button 
                                 onClick={() => setIsTaskModalOpen(true)} 
-                                className="text-white bg-lime-400 p-2 rounded-xl shadow-lime-200 shadow-md hover:bg-lime-500 transition-all"
+                                className={`text-white ${activeTheme.button} p-2 rounded-xl ${activeTheme.shadow} shadow-md transition-all`}
                             >
                                 <Plus size={20}/>
                             </button>
@@ -566,7 +656,7 @@ export default function App() {
                             {tasks.map(t => (
                                 <div key={t.id} className="p-3.5 flex justify-between items-center hover:bg-slate-50 transition-colors">
                                     <div>
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold mr-2 align-middle ${THEME.categories[t.category].bg} ${THEME.categories[t.category].text}`}>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold mr-2 align-middle ${CATEGORY_STYLES[t.category].bg} ${CATEGORY_STYLES[t.category].text}`}>
                                             {t.category}
                                         </span>
                                         <span className="text-slate-700 font-bold text-sm align-middle">{t.title}</span>
@@ -588,7 +678,7 @@ export default function App() {
                             <h3 className="font-bold text-slate-600 text-base">奖励列表</h3>
                             <button 
                                 onClick={() => setIsRewardModalOpen(true)} 
-                                className="text-white bg-purple-400 p-2 rounded-xl shadow-purple-200 shadow-md hover:bg-purple-500 transition-all"
+                                className={`text-white ${activeTheme.button} p-2 rounded-xl ${activeTheme.shadow} shadow-md transition-all`}
                             >
                                 <Plus size={20}/>
                             </button>
@@ -601,7 +691,7 @@ export default function App() {
                                         <span className="text-slate-700 font-bold text-sm">{r.title}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="font-cute text-base text-purple-500 flex items-center gap-1">{r.cost} <Star size={12} fill="currentColor"/></span>
+                                        <span className={`font-cute text-base ${activeTheme.accent} flex items-center gap-1`}>{r.cost} <Star size={12} fill="currentColor"/></span>
                                         <button onClick={() => {
                                             if(window.confirm("删除此奖励?")) setRewards(rewards.filter(x => x.id !== r.id));
                                         }} className="text-slate-300 hover:text-rose-400 p-1.5"><Trash2 size={16}/></button>
@@ -631,10 +721,10 @@ export default function App() {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-6 left-4 right-4 z-30">
         <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-2xl mx-auto px-6 h-20 flex justify-between items-center">
-            <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} color="text-lime-500" />
-            <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} color="text-purple-500" />
-            <NavBtn icon={<CalendarIcon />} label="记录" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} color="text-blue-500" />
-            <NavBtn icon={<Settings />} label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} color="text-slate-500" />
+            <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} activeClass={activeTheme.accent} />
+            <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} activeClass={activeTheme.accent} />
+            <NavBtn icon={<CalendarIcon />} label="记录" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} activeClass={activeTheme.accent} />
+            <NavBtn icon={<Settings />} label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} activeClass="text-slate-500" />
         </div>
       </nav>
 
@@ -643,9 +733,9 @@ export default function App() {
       {/* Name Entry Modal */}
       {isNameModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
-              <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 border-purple-100">
-                  <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-5">
-                      <User size={40} className="text-purple-500" />
+              <div className={`bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 ${activeTheme.border}`}>
+                  <div className={`${activeTheme.light} w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5`}>
+                      <User size={40} className={activeTheme.accent} />
                   </div>
                   <h2 className="font-cute text-2xl text-slate-800 mb-2">欢迎来到小小星系!</h2>
                   <p className="text-slate-500 mb-6 text-base">告诉星星你叫什么名字吧？</p>
@@ -653,12 +743,12 @@ export default function App() {
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
                     placeholder="输入你的名字"
-                    className="w-full bg-slate-50 border-2 border-purple-200 rounded-xl p-3 text-center text-xl font-bold text-slate-700 outline-none focus:border-purple-400 mb-6"
+                    className={`w-full bg-slate-50 border-2 rounded-xl p-3 text-center text-xl font-bold text-slate-700 outline-none focus:${activeTheme.border} mb-6`}
                   />
                   <button 
                     disabled={!userName.trim()}
                     onClick={() => setIsNameModalOpen(false)}
-                    className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 ${!userName.trim() ? 'bg-slate-300' : 'bg-gradient-to-r from-purple-400 to-pink-400'}`}
+                    className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 ${!userName.trim() ? 'bg-slate-300' : `bg-gradient-to-r ${activeTheme.gradient}`}`}
                   >
                       开始探险！🚀
                   </button>
@@ -691,7 +781,7 @@ export default function App() {
                         <div className="flex flex-wrap gap-2">
                             {Object.values(TaskCategory).map(cat => {
                                 const isActive = newTask.category === cat;
-                                const theme = THEME.categories[cat];
+                                const style = CATEGORY_STYLES[cat];
                                 return (
                                     <button
                                         key={cat}
@@ -703,7 +793,7 @@ export default function App() {
                                         }}
                                         className={`px-3 py-1.5 rounded-xl text-sm font-bold border-2 transition-all ${
                                             isActive
-                                            ? `${theme.bg} ${theme.border} ${theme.text} shadow-sm scale-105`
+                                            ? `${style.bg} ${style.border} ${style.text} shadow-sm scale-105`
                                             : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
                                         }`}
                                     >
@@ -748,8 +838,8 @@ export default function App() {
       {isRewardModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
              <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white">
-                <div className="p-4 bg-purple-50 flex justify-between items-center">
-                    <h3 className="font-cute text-xl text-purple-700">🎁 添加新奖励</h3>
+                <div className={`p-4 ${activeTheme.light} flex justify-between items-center`}>
+                    <h3 className={`font-cute text-xl ${activeTheme.accent}`}>🎁 添加新奖励</h3>
                     <button onClick={() => setIsRewardModalOpen(false)} className="bg-white p-1.5 rounded-full text-slate-400 hover:text-slate-600 shadow-sm"><X size={20}/></button>
                 </div>
                 <div className="p-6 space-y-5">
@@ -759,7 +849,8 @@ export default function App() {
                             autoFocus
                             value={newReward.title}
                             onChange={e => setNewReward({...newReward, title: e.target.value})}
-                            className="w-full p-3 rounded-xl bg-slate-50 border-2 border-transparent focus:bg-white focus:border-purple-300 outline-none transition-all text-lg font-bold text-slate-700 placeholder-slate-300"
+                            className="w-full p-3 rounded-xl bg-slate-50 border-2 border-transparent focus:bg-white outline-none transition-all text-lg font-bold text-slate-700 placeholder-slate-300 focus:border-current"
+                            style={{ borderColor: 'transparent' }}
                             placeholder="例如：看30分钟电视"
                         />
                     </div>
@@ -771,7 +862,8 @@ export default function App() {
                                 <button 
                                     key={icon}
                                     onClick={() => setNewReward({...newReward, icon})}
-                                    className={`text-xl p-1.5 rounded-lg hover:bg-white transition-all ${newReward.icon === icon ? 'bg-white shadow-md ring-2 ring-purple-200 scale-110' : 'opacity-60 hover:opacity-100'}`}
+                                    className={`text-xl p-1.5 rounded-lg hover:bg-white transition-all ${newReward.icon === icon ? `bg-white shadow-md ring-2 ring-offset-1 scale-110` : 'opacity-60 hover:opacity-100'}`}
+                                    style={newReward.icon === icon ? { borderColor: 'currentColor' } : {}}
                                 >
                                     {icon}
                                 </button>
@@ -789,18 +881,18 @@ export default function App() {
                                 step="10"
                                 value={newReward.cost}
                                 onChange={e => setNewReward({...newReward, cost: parseInt(e.target.value)})}
-                                className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-purple-400"
+                                className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer"
                             />
-                            <div className="flex items-center justify-center gap-1 w-16 h-10 rounded-lg bg-white shadow-sm border border-purple-100">
-                                <span className="font-cute text-xl text-purple-500">{newReward.cost}</span>
-                                <Star size={14} className="text-purple-500 fill-purple-500" />
+                            <div className="flex items-center justify-center gap-1 w-16 h-10 rounded-lg bg-white shadow-sm border border-slate-100">
+                                <span className={`font-cute text-xl ${activeTheme.accent}`}>{newReward.cost}</span>
+                                <Star size={14} className={`${activeTheme.accent} fill-current`} />
                             </div>
                         </div>
                     </div>
 
                     <button 
                         onClick={handleSaveReward}
-                        className="w-full py-3.5 bg-purple-400 hover:bg-purple-500 text-white rounded-xl font-cute text-lg shadow-lg shadow-purple-200 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                        className={`w-full py-3.5 ${activeTheme.button} text-white rounded-xl font-cute text-lg shadow-lg ${activeTheme.shadow} transition-transform hover:scale-[1.02] active:scale-[0.98]`}
                     >
                         保存奖励
                     </button>
@@ -813,23 +905,25 @@ export default function App() {
   );
 }
 
-const NavBtn = ({ icon, label, active, onClick, color }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, color?: string }) => {
-    // Default color fallback
-    const activeColorClass = color || 'text-orange-500';
-    
+const NavBtn = ({ icon, label, active, onClick, activeClass }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, activeClass: string }) => {
+    // activeClass is something like "text-purple-600"
+    // we need a lighter bg version for the container, e.g. "bg-purple-100"
+    // Simplified mapping for bg based on text color logic roughly
+    const bgClass = active ? activeClass.replace('text-', 'bg-').replace('600', '100').replace('500', '100') : '';
+
     return (
         <button 
             onClick={onClick}
             className={`flex flex-col items-center justify-center w-16 transition-all duration-300 group ${active ? '-translate-y-1' : 'text-slate-300 hover:text-slate-400'}`}
         >
-            <div className={`p-2.5 rounded-xl transition-all duration-300 ${active ? `${activeColorClass.replace('text-', 'bg-').replace('500', '100')} shadow-sm rotate-3 scale-110` : 'group-hover:bg-slate-50'}`}>
+            <div className={`p-2.5 rounded-xl transition-all duration-300 ${active ? `${bgClass} shadow-sm rotate-3 scale-110` : 'group-hover:bg-slate-50'}`}>
                 {React.cloneElement(icon as React.ReactElement<any>, { 
                     size: 24, 
                     strokeWidth: active ? 3 : 2.5,
-                    className: active ? activeColorClass : "currentColor"
+                    className: active ? activeClass : "currentColor"
                 })}
             </div>
-            <span className={`text-[10px] font-bold mt-1 transition-opacity duration-300 ${active ? `opacity-100 ${activeColorClass}` : 'opacity-0'}`}>{label}</span>
+            <span className={`text-[10px] font-bold mt-1 transition-opacity duration-300 ${active ? `opacity-100 ${activeClass}` : 'opacity-0'}`}>{label}</span>
         </button>
     );
 }
