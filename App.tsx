@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Calendar as CalendarIcon, ShoppingBag, Settings, Plus, Trash2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Sparkles, BrainCircuit } from 'lucide-react';
+import { Star, Calendar as CalendarIcon, ShoppingBag, Settings, Plus, Trash2, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Sparkles, BrainCircuit, X } from 'lucide-react';
 import { INITIAL_TASKS, INITIAL_REWARDS } from './constants';
 import { Task, Reward, TaskCategory, Transaction } from './types';
 import { generateIdeas } from './services/geminiService';
+
+// --- Constants for UI ---
+const COMMON_EMOJIS = [
+  '📺', '🎮', '🍦', '🍬', '🍟', '🍔', 
+  '🎡', '🪁', '🧸', '⚽', '🛹', '🎨',
+  '📚', '🧩', '🎸', '🚲', '🏊', '🎁',
+  '🧹', '🛏️', '🛁', '🦷', '🎒', '⏰'
+];
 
 // --- Sub-Components defined here to keep single file structure clean ---
 
@@ -81,6 +89,18 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Modal States
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  
+  // Form States
+  const [newTask, setNewTask] = useState<{title: string, stars: number, category: TaskCategory}>({
+    title: '', stars: 2, category: TaskCategory.LIFE
+  });
+  const [newReward, setNewReward] = useState<{title: string, cost: number, icon: string}>({
+    title: '', cost: 50, icon: '🎁'
+  });
+
   // Persistence Effects
   useEffect(() => localStorage.setItem('app_tasks', JSON.stringify(tasks)), [tasks]);
   useEffect(() => localStorage.setItem('app_rewards', JSON.stringify(rewards)), [rewards]);
@@ -90,7 +110,6 @@ export default function App() {
 
   // Helpers
   const getDateKey = (d: Date) => {
-    // Use local time parts to ensure the key matches the visual date, regardless of timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -100,13 +119,14 @@ export default function App() {
   const updateBalance = (amount: number, description: string, dateContext?: Date) => {
     setBalance(prev => prev + amount);
     
-    // If dateContext is provided (e.g. backfilling tasks), use that date but keep current time
-    // so the order is correct in logs but the date reflects the target day.
     let txDate = new Date();
     if (dateContext) {
-        txDate.setFullYear(dateContext.getFullYear());
-        txDate.setMonth(dateContext.getMonth());
-        txDate.setDate(dateContext.getDate());
+        txDate = new Date(dateContext);
+        const now = new Date();
+        txDate.setHours(now.getHours());
+        txDate.setMinutes(now.getMinutes());
+        txDate.setSeconds(now.getSeconds());
+        txDate.setMilliseconds(now.getMilliseconds());
     }
 
     const newTx: Transaction = {
@@ -127,11 +147,9 @@ export default function App() {
     let newLog;
     if (isCompleted) {
       newLog = currentLog.filter(id => id !== task.id);
-      // Pass currentDate to ensure the transaction log reflects the selected date
       updateBalance(-task.stars, `撤销: ${task.title}`, currentDate);
     } else {
       newLog = [...currentLog, task.id];
-      // Pass currentDate to ensure the transaction log reflects the selected date
       updateBalance(task.stars, `完成: ${task.title}`, currentDate);
     }
 
@@ -149,6 +167,31 @@ export default function App() {
     }
   };
 
+  // Handlers for Modals
+  const handleSaveTask = () => {
+    if (!newTask.title.trim()) return alert("请输入任务名称");
+    setTasks([...tasks, { 
+      id: Date.now().toString(), 
+      title: newTask.title, 
+      stars: newTask.stars, 
+      category: newTask.category 
+    }]);
+    setIsTaskModalOpen(false);
+    setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE }); // Reset
+  };
+
+  const handleSaveReward = () => {
+    if (!newReward.title.trim()) return alert("请输入奖励名称");
+    setRewards([...rewards, {
+      id: Date.now().toString(),
+      title: newReward.title,
+      cost: newReward.cost,
+      icon: newReward.icon
+    }]);
+    setIsRewardModalOpen(false);
+    setNewReward({ title: '', cost: 50, icon: '🎁' }); // Reset
+  };
+
   // AI Logic
   const [isGenerating, setIsGenerating] = useState(false);
   const handleAIGenerate = async (type: 'task' | 'reward') => {
@@ -157,7 +200,6 @@ export default function App() {
     setIsGenerating(false);
     
     if (ideas && ideas.length > 0) {
-        // Add unique IDs
         const newItems = ideas.map((item: any) => ({
             ...item,
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
@@ -175,10 +217,18 @@ export default function App() {
     }
   };
 
+  // Calculated Values for Views
+  const dateKey = getDateKey(currentDate);
+  const dailyTransactions = transactions.filter(tx => {
+    const txDate = new Date(tx.date);
+    return getDateKey(txDate) === dateKey;
+  });
+  const dailyEarned = dailyTransactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0);
+  const dailySpent = dailyTransactions.filter(t => t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+
   // Render Helpers
   const renderTaskList = (category: TaskCategory, colorClass: string) => {
     const categoryTasks = tasks.filter(t => t.category === category);
-    const dateKey = getDateKey(currentDate);
     const completedIds = logs[dateKey] || [];
 
     if (categoryTasks.length === 0) return null;
@@ -296,21 +346,40 @@ export default function App() {
                <h2 className="text-2xl font-bold text-orange-800 mb-6 flex items-center">
                    <CalendarIcon className="mr-2" /> 积分记录
                </h2>
+               
+               <DateNavigator date={currentDate} setDate={setCurrentDate} />
+
+               <div className="grid grid-cols-2 gap-4 mb-6">
+                   <div className="bg-green-100 p-4 rounded-2xl border border-green-200 flex flex-col items-center">
+                       <span className="text-green-600 text-xs font-bold uppercase">今日获得</span>
+                       <span className="text-2xl font-extrabold text-green-600">+{dailyEarned}</span>
+                   </div>
+                   <div className="bg-red-100 p-4 rounded-2xl border border-red-200 flex flex-col items-center">
+                       <span className="text-red-500 text-xs font-bold uppercase">今日消费/扣除</span>
+                       <span className="text-2xl font-extrabold text-red-500">-{dailySpent}</span>
+                   </div>
+               </div>
+
                <div className="bg-white rounded-2xl p-4 shadow-sm border border-orange-100">
-                   <h3 className="text-gray-500 text-sm mb-3">最近活动</h3>
+                   <h3 className="text-gray-500 text-sm mb-3">当日明细</h3>
                    <div className="space-y-3">
-                        {transactions.slice(0, 20).map(tx => (
+                        {dailyTransactions.map(tx => (
                             <div key={tx.id} className="flex justify-between items-center border-b border-gray-50 pb-2 last:border-0">
                                 <div>
                                     <p className="font-medium text-gray-700">{tx.description}</p>
-                                    <p className="text-xs text-gray-400">{new Date(tx.date).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                    <p className="text-xs text-gray-400">{new Date(tx.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</p>
                                 </div>
                                 <span className={`font-bold ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
                                     {tx.amount > 0 ? '+' : ''}{tx.amount}
                                 </span>
                             </div>
                         ))}
-                        {transactions.length === 0 && <p className="text-center text-gray-400 py-4">暂无记录</p>}
+                        {dailyTransactions.length === 0 && (
+                            <div className="text-center py-8">
+                                <p className="text-gray-300 text-4xl mb-2">📅</p>
+                                <p className="text-gray-400 text-sm">这一天没有积分变动哦</p>
+                            </div>
+                        )}
                    </div>
                </div>
            </div>
@@ -354,13 +423,12 @@ export default function App() {
                     <div>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-gray-700">任务列表</h3>
-                            <button onClick={() => {
-                                const title = prompt("输入新任务名称:");
-                                if(!title) return;
-                                const stars = parseInt(prompt("星星数量 (负数表示惩罚):", "2") || "2");
-                                const cat = prompt("类别 (生活习惯/行为习惯/加分项/减分项):", "生活习惯");
-                                if(title) setTasks([...tasks, { id: Date.now().toString(), title, stars, category: cat as TaskCategory }]);
-                            }} className="text-orange-500 bg-orange-100 p-2 rounded-lg hover:bg-orange-200 transition-colors"><Plus size={20}/></button>
+                            <button 
+                                onClick={() => setIsTaskModalOpen(true)} 
+                                className="text-orange-500 bg-orange-100 p-2 rounded-lg hover:bg-orange-200 transition-colors"
+                            >
+                                <Plus size={20}/>
+                            </button>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y">
                             {tasks.map(t => (
@@ -384,13 +452,12 @@ export default function App() {
                     <div>
                          <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-gray-700">奖励列表</h3>
-                            <button onClick={() => {
-                                const title = prompt("输入奖励名称:");
-                                if(!title) return;
-                                const cost = parseInt(prompt("兑换花费:", "50") || "50");
-                                const icon = prompt("输入一个Emoji图标:", "🎁");
-                                if(title) setRewards([...rewards, { id: Date.now().toString(), title, cost, icon: icon || '🎁' }]);
-                            }} className="text-orange-500 bg-orange-100 p-2 rounded-lg hover:bg-orange-200 transition-colors"><Plus size={20}/></button>
+                            <button 
+                                onClick={() => setIsRewardModalOpen(true)} 
+                                className="text-orange-500 bg-orange-100 p-2 rounded-lg hover:bg-orange-200 transition-colors"
+                            >
+                                <Plus size={20}/>
+                            </button>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y">
                             {rewards.map(r => (
@@ -436,6 +503,149 @@ export default function App() {
             <NavBtn icon={<Settings />} label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
         </div>
       </nav>
+
+      {/* --- MODALS --- */}
+      
+      {/* Task Modal */}
+      {isTaskModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in">
+                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-orange-50">
+                    <h3 className="font-bold text-orange-800">添加新任务</h3>
+                    <button onClick={() => setIsTaskModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-xs text-gray-500 font-bold uppercase mb-1">任务名称</label>
+                        <input 
+                            autoFocus
+                            value={newTask.title}
+                            onChange={e => setNewTask({...newTask, title: e.target.value})}
+                            className="w-full p-3 rounded-xl border border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all"
+                            placeholder="例如：自己收拾书包"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-xs text-gray-500 font-bold uppercase mb-1">任务类别</label>
+                        <div className="flex flex-wrap gap-2">
+                            {Object.values(TaskCategory).map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => {
+                                        // Auto-adjust stars based on category default if user hasn't messed with it much
+                                        let defaultStars = 2;
+                                        if(cat === TaskCategory.BONUS) defaultStars = 5;
+                                        if(cat === TaskCategory.PENALTY) defaultStars = -5;
+                                        setNewTask({...newTask, category: cat, stars: defaultStars});
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                                        newTask.category === cat 
+                                        ? 'bg-orange-100 border-orange-400 text-orange-700' 
+                                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs text-gray-500 font-bold uppercase mb-1">
+                            {newTask.category === TaskCategory.PENALTY ? '扣除星星' : '奖励星星'}
+                        </label>
+                        <div className="flex items-center gap-4">
+                            <input 
+                                type="range"
+                                min={newTask.category === TaskCategory.PENALTY ? -20 : 1}
+                                max={newTask.category === TaskCategory.PENALTY ? -1 : 20}
+                                value={newTask.stars}
+                                onChange={e => setNewTask({...newTask, stars: parseInt(e.target.value)})}
+                                className="flex-1 accent-orange-400 h-2 bg-gray-200 rounded-lg appearance-none"
+                            />
+                            <span className={`font-extrabold text-xl w-12 text-center ${newTask.stars > 0 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                {newTask.stars > 0 ? '+' : ''}{newTask.stars}
+                            </span>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleSaveTask}
+                        className="w-full py-3 bg-orange-400 hover:bg-orange-500 text-white rounded-xl font-bold shadow-lg shadow-orange-200 transition-all mt-4"
+                    >
+                        保存任务
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Reward Modal */}
+      {isRewardModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+             <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in">
+                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-purple-50">
+                    <h3 className="font-bold text-purple-800">添加新奖励</h3>
+                    <button onClick={() => setIsRewardModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-xs text-gray-500 font-bold uppercase mb-1">奖励名称</label>
+                        <input 
+                            autoFocus
+                            value={newReward.title}
+                            onChange={e => setNewReward({...newReward, title: e.target.value})}
+                            className="w-full p-3 rounded-xl border border-gray-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all"
+                            placeholder="例如：看30分钟电视"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs text-gray-500 font-bold uppercase mb-1">选择图标</label>
+                        <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-xl border border-gray-100">
+                            {COMMON_EMOJIS.map(icon => (
+                                <button 
+                                    key={icon}
+                                    onClick={() => setNewReward({...newReward, icon})}
+                                    className={`text-xl p-2 rounded-lg hover:bg-white transition-all ${newReward.icon === icon ? 'bg-white shadow-md ring-2 ring-purple-200 scale-110' : 'opacity-70 hover:opacity-100'}`}
+                                >
+                                    {icon}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs text-gray-500 font-bold uppercase mb-1">兑换花费</label>
+                        <div className="flex items-center gap-4">
+                            <input 
+                                type="range"
+                                min="10"
+                                max="500"
+                                step="10"
+                                value={newReward.cost}
+                                onChange={e => setNewReward({...newReward, cost: parseInt(e.target.value)})}
+                                className="flex-1 accent-purple-400 h-2 bg-gray-200 rounded-lg appearance-none"
+                            />
+                            <div className="flex items-center gap-1 w-16 justify-end">
+                                <span className="font-extrabold text-xl text-orange-500">{newReward.cost}</span>
+                                <Star size={16} className="text-orange-500 fill-orange-500" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleSaveReward}
+                        className="w-full py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl font-bold shadow-lg shadow-purple-200 transition-all mt-4"
+                    >
+                        保存奖励
+                    </button>
+                </div>
+             </div>
+        </div>
+      )}
+
     </div>
   );
 }
