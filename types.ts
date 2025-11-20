@@ -1,3 +1,4 @@
+
 export enum TaskCategory {
   LIFE = '生活习惯',
   BEHAVIOR = '行为习惯',
@@ -31,6 +32,14 @@ export interface Transaction {
   description: string;
   amount: number; // Positive (earned) or Negative (spent)
   type: 'EARN' | 'SPEND' | 'PENALTY';
+}
+
+// Added Pet interface to satisfy cloud.ts import
+export interface Pet {
+  name: string;
+  level: number;
+  experience: number;
+  lastInteracted: number;
 }
 
 export interface AppState {

@@ -15,7 +15,7 @@ const NavBtn = ({ icon, label, active, onClick, activeClass }: { icon: React.Rea
     return (
         <button 
             onClick={onClick}
-            className={`flex flex-col items-center justify-center w-16 transition-all duration-300 group ${active ? '-translate-y-1' : 'text-slate-300 hover:text-slate-400'}`}
+            className={`flex flex-col items-center justify-center w-14 transition-all duration-300 group ${active ? '-translate-y-1' : 'text-slate-300 hover:text-slate-400'}`}
         >
             <div className={`p-2.5 rounded-xl transition-all duration-300 ${active ? `${bgClass} shadow-sm rotate-3 scale-110` : 'group-hover:bg-slate-50'}`}>
                 {React.cloneElement(icon as React.ReactElement<any>, { 
@@ -34,7 +34,7 @@ export const NavBar: React.FC<NavBarProps> = ({ activeTab, setActiveTab, themeKe
   
   return (
     <nav className="fixed bottom-6 left-4 right-4 z-30">
-        <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-2xl mx-auto px-6 h-20 flex justify-between items-center">
+        <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-2xl mx-auto px-4 h-20 flex justify-around items-center">
             <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} activeClass={theme.accent} />
             <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} activeClass={theme.accent} />
             <NavBtn icon={<CalendarIcon />} label="记录" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} activeClass={theme.accent} />
