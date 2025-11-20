@@ -64,8 +64,7 @@ export default function App() {
 
   // Cloud Sync State
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
-  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
-  const isInitialMount = useRef(true);
+  const [isSyncReady, setIsSyncReady] = useState(false); // IMPORTANT: Prevents auto-save from overwriting cloud data before initial load
 
   // Modal States
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -102,25 +101,32 @@ export default function App() {
 
   // --- CLOUD SYNC LOGIC ---
 
-  // 1. Auto-load on startup if familyId exists
+  // 1. Initialization: If Family ID exists, load data first.
   useEffect(() => {
-    if (familyId && isInitialMount.current) {
-      console.log("Initial mount with Family ID, fetching data...");
-      handleCloudLoad(true); // Silent load
+    if (familyId) {
+      // We have an ID from localStorage. Do NOT enable syncReady yet.
+      // We must load the cloud data first to avoid overwriting it with local stale data.
+      handleCloudLoad(familyId, true);
     }
-    isInitialMount.current = false;
-  }, [familyId]);
+  }, []); // Run once on mount
 
-  // 2. Auto-save debounce effect
+  // 2. Auto-Save: Triggered by state changes, but guarded by `isSyncReady`
   useEffect(() => {
-    if (!familyId || isInitialMount.current) return;
+    if (!familyId || !isSyncReady) return;
 
     const timer = setTimeout(() => {
       handleCloudSave(true); // Silent save
     }, 2000); // Auto-save 2 seconds after last change
 
     return () => clearTimeout(timer);
-  }, [tasks, rewards, logs, balance, transactions, themeKey, userName, familyId]);
+  }, [tasks, rewards, logs, balance, transactions, themeKey, userName, familyId, isSyncReady]);
+
+  // 3. Tab Switch Refresh: When switching tabs, pull latest data
+  useEffect(() => {
+    if (familyId && isSyncReady) {
+        handleCloudLoad(familyId, true);
+    }
+  }, [activeTab]);
 
   const handleCloudSave = async (silent = false) => {
     if (!familyId) return;
@@ -139,7 +145,6 @@ export default function App() {
     const success = await cloudService.saveData(familyId, data);
     if (success) {
       setSyncStatus('saved');
-      setLastSyncTime(Date.now());
       if (!silent) {
         setTimeout(() => setSyncStatus('idle'), 2000);
       }
@@ -148,15 +153,14 @@ export default function App() {
     }
   };
 
-  const handleCloudLoad = async (silent = false) => {
-    if (!familyId) return;
+  const handleCloudLoad = async (targetFamilyId: string, silent = false) => {
+    if (!targetFamilyId) return;
     if (!silent) setSyncStatus('syncing');
 
     try {
-      const data = await cloudService.loadData(familyId);
+      const data = await cloudService.loadData(targetFamilyId);
       if (data) {
-        // Merge logic: In a simple version, cloud wins. 
-        // In production, you might want smarter merging.
+        // Update all state from cloud
         if (data.tasks) setTasks(data.tasks);
         if (data.rewards) setRewards(data.rewards);
         if (data.logs) setLogs(data.logs);
@@ -166,23 +170,34 @@ export default function App() {
         if (data.userName) setUserName(data.userName);
         
         setSyncStatus('saved');
-        setLastSyncTime(Date.now());
+        // Important: Data loaded successfully, NOW we can allow auto-saves.
+        setIsSyncReady(true);
+
         if (!silent) {
-            // Small visual feedback
              confetti({
                 particleCount: 50,
                 spread: 60,
                 origin: { y: 0.8 },
-                colors: ['#A7F3D0', '#6EE7B7', '#34D399'] // Minty greens
+                colors: ['#A7F3D0', '#6EE7B7', '#34D399']
             });
         }
       } else {
-        if (!silent) alert('未找到云端数据，请先上传。');
+        // ID not found or empty data. 
+        // If we are joining, this is an error or empty account.
+        // If we just created, this won't happen via this path usually.
+        if (!silent) alert('未找到该家庭ID的数据，可能是新ID。');
+        
+        // If we are explicitly loading (not silent), and found nothing, 
+        // we might still want to enable sync to start saving *our* data.
+        // But let's be safe: only enable sync if we are sure we want to overwrite.
+        // For now, we'll set ready to true so the current local data becomes the truth.
+        setIsSyncReady(true);
         setSyncStatus('idle');
       }
     } catch (e) {
       setSyncStatus('error');
       if (!silent) alert('同步失败，请检查网络或 ID。');
+      // Do NOT enable isSyncReady on error, to prevent overwriting cloud with local data during outage.
     }
   };
 
@@ -197,8 +212,10 @@ export default function App() {
     // 2. Close Modal
     setIsNameModalOpen(false);
     
-    // 3. Trigger Initial Save immediately to reserve ID and save name
-    // Use timeout to ensure state is updated
+    // 3. Enable Sync Ready immediately because we are the creator (Source of Truth)
+    setIsSyncReady(true);
+    
+    // 4. Force an immediate save to register the ID
     setTimeout(async () => {
         const initialData = {
             tasks: INITIAL_TASKS,
@@ -209,9 +226,7 @@ export default function App() {
             themeKey: 'lemon',
             userName: userName
         };
-        // Force save with explicit data to avoid race condition with state updates
         await cloudService.saveData(newId, initialData);
-        // Trigger confetti
         triggerStarConfetti();
     }, 100);
   };
@@ -219,18 +234,21 @@ export default function App() {
   const handleJoinFamily = async () => {
       if (!joinInputId.trim()) return;
       
+      // 1. Set ID
       setFamilyId(joinInputId);
       setIsNameModalOpen(false);
       
-      // Trigger load immediately
-      setTimeout(() => {
-          handleCloudLoad(false); // Not silent, show result
-      }, 100);
+      // 2. DISABLE sync ready. We must load first.
+      setIsSyncReady(false);
+
+      // 3. Trigger load immediately
+      await handleCloudLoad(joinInputId, false);
   };
 
   const handleCreateFamily = () => {
     const newId = cloudService.generateFamilyId();
     setFamilyId(newId);
+    setIsSyncReady(true); // We are creating, so local is truth.
     setTimeout(() => handleCloudSave(), 100);
   };
 
@@ -396,8 +414,35 @@ export default function App() {
     const txDate = new Date(tx.date);
     return getDateKey(txDate) === dateKey;
   });
-  const dailyEarned = dailyTransactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0);
-  const dailySpent = dailyTransactions.filter(t => t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+
+  // Updated Calculation Logic for Stats
+  let dailyEarned = 0;
+  let dailySpent = 0;
+
+  dailyTransactions.forEach(tx => {
+      const isSwap = tx.description.includes('兑换');
+      const isUndo = tx.description.includes('撤销');
+      
+      if (isSwap) {
+          dailySpent += Math.abs(tx.amount);
+      } else if (isUndo) {
+          if (tx.amount < 0) {
+              // Undoing a positive task (reducing earned)
+              dailyEarned -= Math.abs(tx.amount);
+          } else {
+              // Undoing a negative task (reversing penalty -> reducing spent)
+              dailySpent -= tx.amount;
+          }
+      } else {
+          // Normal task or penalty
+          if (tx.amount > 0) {
+              dailyEarned += tx.amount;
+          } else {
+              // Penalty counts as spent (negative progress)
+              dailySpent += Math.abs(tx.amount);
+          }
+      }
+  });
 
   // Render Helpers
   const renderTaskList = (category: TaskCategory) => {
@@ -530,11 +575,11 @@ export default function App() {
                <div className="grid grid-cols-2 gap-4 mb-6">
                    <div className="bg-lime-100 p-4 rounded-[1.8rem] border-2 border-lime-200 flex flex-col items-center shadow-sm">
                        <span className="text-lime-700 text-sm font-bold mb-1">今日获得</span>
-                       <span className="text-3xl font-cute text-lime-600 drop-shadow-sm">+{dailyEarned}</span>
+                       <span className="text-3xl font-cute text-lime-600 drop-shadow-sm">{dailyEarned >= 0 ? '+' : ''}{dailyEarned}</span>
                    </div>
                    <div className="bg-rose-100 p-4 rounded-[1.8rem] border-2 border-rose-200 flex flex-col items-center shadow-sm">
                        <span className="text-rose-600 text-sm font-bold mb-1">今日消费</span>
-                       <span className="text-3xl font-cute text-rose-500 drop-shadow-sm">-{dailySpent}</span>
+                       <span className="text-3xl font-cute text-rose-500 drop-shadow-sm">{dailySpent >= 0 ? '-' : '+'}{Math.abs(dailySpent)}</span>
                    </div>
                </div>
 
@@ -629,20 +674,18 @@ export default function App() {
                                     className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-3 outline-none focus:border-slate-300 text-slate-700 font-mono text-sm"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
-                                            setFamilyId(e.currentTarget.value);
-                                            setTimeout(() => handleCloudLoad(), 100);
+                                            // Handle join directly
+                                            setJoinInputId(e.currentTarget.value);
+                                            handleJoinFamily();
                                         }
                                     }}
+                                    onChange={(e) => setJoinInputId(e.target.value)}
+                                    value={joinInputId}
                                 />
                                 <button 
-                                    onClick={(e) => {
-                                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                                        if (input.value) {
-                                            setFamilyId(input.value);
-                                            setTimeout(() => handleCloudLoad(), 100);
-                                        }
-                                    }}
-                                    className="bg-slate-100 text-slate-600 px-4 rounded-xl font-bold hover:bg-slate-200"
+                                    onClick={handleJoinFamily}
+                                    disabled={!joinInputId}
+                                    className="bg-slate-100 text-slate-600 px-4 rounded-xl font-bold hover:bg-slate-200 disabled:opacity-50"
                                 >
                                     加入
                                 </button>
@@ -668,7 +711,7 @@ export default function App() {
                                      <Upload size={16}/> 手动上传
                                  </button>
                                  <button 
-                                     onClick={() => handleCloudLoad()}
+                                     onClick={() => handleCloudLoad(familyId)}
                                      className="flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
                                  >
                                      <Download size={16}/> 手动下载
@@ -676,7 +719,12 @@ export default function App() {
                              </div>
                              
                              <div className="mt-4 text-center">
-                                <button onClick={() => {if(window.confirm('确定要断开同步吗？本地数据会保留。')) setFamilyId('')}} className="text-xs text-slate-400 underline hover:text-rose-400">断开连接</button>
+                                <button onClick={() => {
+                                    if(window.confirm('确定要断开同步吗？本地数据会保留，但停止上传。')) {
+                                        setFamilyId('');
+                                        setIsSyncReady(false);
+                                    }
+                                }} className="text-xs text-slate-400 underline hover:text-rose-400">断开连接</button>
                              </div>
                         </div>
                     )}
