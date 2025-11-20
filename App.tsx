@@ -65,6 +65,7 @@ export default function App() {
   // Cloud Sync State
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
   const [isSyncReady, setIsSyncReady] = useState(false); // IMPORTANT: Prevents auto-save from overwriting cloud data before initial load
+  const [isInteractionBlocked, setIsInteractionBlocked] = useState(false); // Blocks UI during critical updates/animations
 
   // Modal States
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -110,20 +111,33 @@ export default function App() {
     }
   }, []); // Run once on mount
 
-  // 2. Auto-Save: Triggered by state changes, but guarded by `isSyncReady`
+  // 2. Auto-Save for Critical Data (Fast Response)
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
 
+    // Fast debounce for critical interactions (completing tasks, spending points)
+    // This ensures data is pushed almost immediately after action, preventing sync race conditions on tab switch.
     const timer = setTimeout(() => {
       handleCloudSave(true); // Silent save
-    }, 2000); // Auto-save 2 seconds after last change
+    }, 500); 
 
     return () => clearTimeout(timer);
-  }, [tasks, rewards, logs, balance, transactions, themeKey, userName, familyId, isSyncReady]);
+  }, [tasks, rewards, logs, balance, transactions, themeKey, familyId, isSyncReady]);
 
-  // 3. Tab Switch Refresh: When switching tabs, pull latest data
+  // 3. Auto-Save for User Name (Slow Debounce)
   useEffect(() => {
-    if (familyId && isSyncReady) {
+    if (!familyId || !isSyncReady) return;
+    // Slower debounce for typing to avoid spamming requests
+    const timer = setTimeout(() => {
+        handleCloudSave(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [userName, familyId, isSyncReady]);
+
+  // 4. Tab Switch Refresh: When switching tabs, pull latest data
+  useEffect(() => {
+    // Only pull if we are not currently blocking interaction (meaning a save/animation might be in progress)
+    if (familyId && isSyncReady && !isInteractionBlocked) {
         handleCloudLoad(familyId, true);
     }
   }, [activeTab]);
@@ -183,21 +197,13 @@ export default function App() {
         }
       } else {
         // ID not found or empty data. 
-        // If we are joining, this is an error or empty account.
-        // If we just created, this won't happen via this path usually.
         if (!silent) alert('未找到该家庭ID的数据，可能是新ID。');
-        
-        // If we are explicitly loading (not silent), and found nothing, 
-        // we might still want to enable sync to start saving *our* data.
-        // But let's be safe: only enable sync if we are sure we want to overwrite.
-        // For now, we'll set ready to true so the current local data becomes the truth.
         setIsSyncReady(true);
         setSyncStatus('idle');
       }
     } catch (e) {
       setSyncStatus('error');
       if (!silent) alert('同步失败，请检查网络或 ID。');
-      // Do NOT enable isSyncReady on error, to prevent overwriting cloud with local data during outage.
     }
   };
 
@@ -205,17 +211,11 @@ export default function App() {
   const handleStartAdventure = async () => {
     if (!userName.trim()) return;
     
-    // 1. Generate new Family ID
     const newId = cloudService.generateFamilyId();
     setFamilyId(newId);
-    
-    // 2. Close Modal
     setIsNameModalOpen(false);
-    
-    // 3. Enable Sync Ready immediately because we are the creator (Source of Truth)
     setIsSyncReady(true);
     
-    // 4. Force an immediate save to register the ID
     setTimeout(async () => {
         const initialData = {
             tasks: INITIAL_TASKS,
@@ -234,21 +234,17 @@ export default function App() {
   const handleJoinFamily = async () => {
       if (!joinInputId.trim()) return;
       
-      // 1. Set ID
       setFamilyId(joinInputId);
       setIsNameModalOpen(false);
-      
-      // 2. DISABLE sync ready. We must load first.
-      setIsSyncReady(false);
+      setIsSyncReady(false); // Disable sync until loaded
 
-      // 3. Trigger load immediately
       await handleCloudLoad(joinInputId, false);
   };
 
   const handleCreateFamily = () => {
     const newId = cloudService.generateFamilyId();
     setFamilyId(newId);
-    setIsSyncReady(true); // We are creating, so local is truth.
+    setIsSyncReady(true);
     setTimeout(() => handleCloudSave(), 100);
   };
 
@@ -257,12 +253,18 @@ export default function App() {
     alert('家庭ID已复制！发送给其他家庭成员即可同步。');
   };
 
-  // Celebration Timer
+  // Celebration Timer & Interaction Blocker
   useEffect(() => {
     if (showCelebration.show) {
+      // Block interaction when celebration starts
+      setIsInteractionBlocked(true);
+      
       const timer = setTimeout(() => {
         setShowCelebration(prev => ({ ...prev, show: false }));
+        // Unblock interaction when celebration ends
+        setIsInteractionBlocked(false);
       }, 2000);
+      
       return () => clearTimeout(timer);
     }
   }, [showCelebration.show]);
@@ -298,19 +300,18 @@ export default function App() {
   };
 
   const triggerRainConfetti = () => {
-    // Create a "Heavy Rain" effect for penalty
     const duration = 1000;
     const end = Date.now() + duration;
 
     (function frame() {
       confetti({
         particleCount: 6,
-        angle: 270, // Straight down
+        angle: 270, 
         spread: 10, 
         origin: { x: Math.random(), y: -0.2 }, 
-        colors: ['#64748b', '#94a3b8', '#475569'], // Dark Slates
-        shapes: ['circle'], // Rain drops
-        gravity: 3.5, // Heavy gravity
+        colors: ['#64748b', '#94a3b8', '#475569'], 
+        shapes: ['circle'], 
+        gravity: 3.5, 
         scalar: 0.6,
         drift: 0,
         ticks: 400
@@ -349,9 +350,13 @@ export default function App() {
 
     let newLog;
     if (isCompleted) {
+      // Undo
       newLog = currentLog.filter(id => id !== task.id);
       updateBalance(-task.stars, `撤销: ${task.title}`, currentDate);
     } else {
+      // Complete - Start interaction block here
+      setIsInteractionBlocked(true);
+      
       newLog = [...currentLog, task.id];
       updateBalance(task.stars, `完成: ${task.title}`, currentDate);
       
@@ -505,6 +510,9 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
+      {/* Interaction Blocker Overlay */}
+      {isInteractionBlocked && <div className="fixed inset-0 z-[40] bg-transparent cursor-wait" />}
+      
       <CelebrationOverlay isVisible={showCelebration.show} points={showCelebration.points} type={showCelebration.type} />
 
       <Header balance={balance} userName={userName} themeKey={themeKey} />
